@@ -21,13 +21,14 @@ module.exports = async function authMiddleware(req, res, next) {
       return res.status(401).json({ success: false, message: 'Invalid token payload' });
     }
 
-    // Xác nhận user vẫn tồn tại (tránh token của account đã xoá).
-    const user = await User.findById(payload.sub).select('_id').lean();
+    // Xác nhận user vẫn tồn tại + lấy isAdmin.
+    const user = await User.findById(payload.sub).select('_id isAdmin').lean();
     if (!user) {
       return res.status(401).json({ success: false, message: 'User not found' });
     }
 
     req.userId = user._id.toString();
+    req.isAdmin = user.isAdmin || null; // null | 'normal' | 'master'
     next();
   } catch (err) {
     if (err.name === 'TokenExpiredError') {

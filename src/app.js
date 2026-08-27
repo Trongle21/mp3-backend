@@ -14,6 +14,7 @@ const authRoutes = require("./routes/auth.routes");
 const trackRoutes = require("./routes/track.routes");
 const groupRoutes = require("./routes/group.routes");
 const playerRoutes = require("./routes/player.routes");
+const userRoutes = require("./routes/user.routes");
 
 const app = express();
 
@@ -62,6 +63,7 @@ app.use("/api/auth", authRoutes);
 app.use("/api/tracks", trackRoutes);
 app.use("/api/groups", groupRoutes);
 app.use("/api/player", playerRoutes);
+app.use("/api/users", userRoutes);
 
 // 404 + error handler đặt CUỐI cùng.
 app.use(notFoundMiddleware);
