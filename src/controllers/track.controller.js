@@ -151,7 +151,7 @@ exports.list = async (req, res) => {
     filter.$or = [{ title: re }, { artist: re }];
   }
 
-  const allowedSort = { createdAt: -1, title: 1, artist: 1 };
+  const allowedSort = { createdAt: -1, recent: -1, title: 1, artist: 1 };
   const sortKey = req.query.sort in allowedSort ? req.query.sort : 'createdAt';
   const sort = { [sortKey]: allowedSort[sortKey] };
 

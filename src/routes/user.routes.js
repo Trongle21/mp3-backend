@@ -27,6 +27,13 @@ router.patch(
   runValidation,
   asyncHandler(ctrl.updateUser)
 );
+router.delete(
+  '/:id',
+  requireMaster,
+  [param('id').isMongoId()],
+  runValidation,
+  asyncHandler(ctrl.remove)
+);
 
 // ✅ Own profile
 router.get('/me', asyncHandler(ctrl.getProfile));

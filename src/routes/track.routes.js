@@ -19,7 +19,7 @@ router.get(
   '/',
   [
     query('search').optional().isString().trim(),
-    query('sort').optional().isIn(['createdAt', 'title', 'artist']),
+    query('sort').optional().isIn(['createdAt', 'recent', 'title', 'artist']),
     query('page').optional().isInt({ min: 1 }),
     query('limit').optional().isInt({ min: 1, max: 100 }),
     query('albumId').optional().isMongoId(),

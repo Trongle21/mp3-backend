@@ -290,3 +290,48 @@ exports.deleteAvatar = async (req, res) => {
 
   return res.json({ success: true, data: user });
 };
+
+/**
+ * DELETE /api/users/:id
+ * Master only — xóa user khác. Không được xóa chính mình.
+ */
+exports.remove = async (req, res) => {
+  const { id } = req.params;
+
+  if (id === req.userId) {
+    return res.status(403).json({ success: false, message: 'Cannot delete your own account' });
+  }
+
+  const target = await User.findById(id);
+  if (!target) {
+    return res.status(404).json({ success: false, message: 'User not found' });
+  }
+
+  // Xóa avatar trên R2 nếu có.
+  if (target.avatarKey) {
+    try {
+      await s3.send(new DeleteObjectCommand({ Bucket: BUCKET, Key: target.avatarKey }));
+    } catch (err) {
+      console.warn('[user.remove] delete avatar failed:', err.message);
+    }
+  }
+
+  // Xóa luôn các document liên quan để tránh orphan data.
+  const Track = require('../models/Track');
+  const Group = require('../models/Group');
+  const Album = require('../models/Album');
+
+  await Promise.all([
+    Track.deleteMany({ owner: id }),
+    Group.deleteMany({ owner: id }),
+    Album.deleteMany({ owner: id }),
+  ]);
+
+  // Xóa user khỏi groups/albums mà họ đang tham gia (thay vì xóa hẳn group/album).
+  await Group.updateMany({ 'members.user': id }, { $pull: { members: { user: id } } });
+  await Album.updateMany({ 'members.user': id }, { $pull: { members: { user: id } } });
+
+  await User.deleteOne({ _id: id });
+
+  return res.json({ success: true, data: { _id: id } });
+};
