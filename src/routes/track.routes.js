@@ -1,5 +1,5 @@
 const { Router } = require('express');
-const { param } = require('express-validator');
+const { query, param } = require('express-validator');
 const ctrl = require('../controllers/track.controller');
 const asyncHandler = require('../utils/asyncHandler');
 const auth = require('../middleware/auth.middleware');
@@ -15,7 +15,18 @@ router.use(auth);
 // 🔒 Admin only — upload nhạc (sửa/xóa track cũng admin only)
 router.post('/upload', requireAdmin, upload.single('file'), asyncHandler(ctrl.upload));
 // ✅ Ai cũng được — xem danh sách / chi tiết
-router.get('/', asyncHandler(ctrl.list));
+router.get(
+  '/',
+  [
+    query('search').optional().isString().trim(),
+    query('sort').optional().isIn(['createdAt', 'title', 'artist']),
+    query('page').optional().isInt({ min: 1 }),
+    query('limit').optional().isInt({ min: 1, max: 100 }),
+    query('albumId').optional().isMongoId(),
+  ],
+  runValidation,
+  asyncHandler(ctrl.list)
+);
 router.get('/:id', [param('id').isMongoId()], runValidation, asyncHandler(ctrl.getOne));
 // ✅ Ai cũng được — stream & cover binary (public CDN sẽ phục vụ coverUrl)
 router.get('/:id/cover', [param('id').isMongoId()], runValidation, asyncHandler(ctrl.getCover));

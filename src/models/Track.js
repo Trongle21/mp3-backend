@@ -4,7 +4,12 @@ const trackSchema = new mongoose.Schema(
   {
     title: { type: String, required: true, trim: true, index: true },
     artist: { type: String, trim: true, default: '', index: true },
-    album: { type: String, trim: true, default: '' },
+    album: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Album',
+      default: null,
+      index: true,
+    },
     durationSec: { type: Number, default: 0 },
     // Key của file audio trong R2, vd: tracks/{userId}/{uuid}.mp3
     fileKey: { type: String, required: true },

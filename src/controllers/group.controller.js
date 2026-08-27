@@ -42,7 +42,6 @@ exports.create = async (req, res) => {
  */
 exports.list = async (req, res) => {
   const groups = await Group.aggregate([
-    { $match: { owner: new mongoose.Types.ObjectId(req.userId) } },
     { $project: { name: 1, thumbnailKey: 1, createdAt: 1, updatedAt: 1, trackCount: { $size: '$tracks' } } },
     { $sort: { updatedAt: -1 } },
   ]);
@@ -57,7 +56,7 @@ exports.getOne = async (req, res) => {
   if (!ensureObjectId(req.params.id)) {
     return res.status(400).json({ success: false, message: 'Invalid id' });
   }
-  const group = await Group.findOne({ _id: req.params.id, owner: req.userId }).populate({
+  const group = await Group.findOne({ _id: req.params.id }).populate({
     path: 'tracks.track',
     select: 'title artist album durationSec fileKey coverKey mimeType',
   });
@@ -81,7 +80,7 @@ exports.rename = async (req, res) => {
     return res.status(400).json({ success: false, message: 'name is required' });
   }
   const group = await Group.findOneAndUpdate(
-    { _id: req.params.id, owner: req.userId },
+    { _id: req.params.id },
     { name: req.body.name },
     { new: true }
   ).lean();
@@ -90,7 +89,7 @@ exports.rename = async (req, res) => {
 };
 
 exports.remove = async (req, res) => {
-  const group = await Group.findOneAndDelete({ _id: req.params.id, owner: req.userId });
+  const group = await Group.findOneAndDelete({ _id: req.params.id });
   if (!group) return res.status(404).json({ success: false, message: 'Group not found' });
   return res.json({ success: true, data: { id: group._id } });
 };
@@ -104,11 +103,11 @@ exports.addTrack = async (req, res) => {
     return res.status(400).json({ success: false, message: 'Invalid trackId' });
   }
 
-  // Verify track thuộc user.
-  const track = await Track.findOne({ _id: trackId, owner: req.userId }).select('_id').lean();
+  // Verify track tồn tại (bỏ check owner — track giờ chung).
+  const track = await Track.findOne({ _id: trackId }).select('_id').lean();
   if (!track) return res.status(404).json({ success: false, message: 'Track not found' });
 
-  const group = await Group.findOne({ _id: req.params.id, owner: req.userId });
+  const group = await Group.findOne({ _id: req.params.id });
   if (!group) return res.status(404).json({ success: false, message: 'Group not found' });
 
   // Tránh trùng — không thêm nếu track đã có.
@@ -132,7 +131,7 @@ exports.addTrack = async (req, res) => {
  * DELETE /api/groups/:id/tracks/:trackId
  */
 exports.removeTrack = async (req, res) => {
-  const group = await Group.findOne({ _id: req.params.id, owner: req.userId });
+  const group = await Group.findOne({ _id: req.params.id });
   if (!group) return res.status(404).json({ success: false, message: 'Group not found' });
 
   const before = group.tracks.length;
@@ -160,7 +159,7 @@ exports.uploadThumbnail = async (req, res) => {
     return res.status(500).json({ success: false, message: 'R2 bucket not configured' });
   }
 
-  const group = await Group.findOne({ _id: req.params.id, owner: req.userId });
+  const group = await Group.findOne({ _id: req.params.id });
   if (!group) return res.status(404).json({ success: false, message: 'Group not found' });
 
   const ext = extFromFilename(req.file.originalname) || 'jpg';
@@ -198,7 +197,7 @@ exports.uploadThumbnail = async (req, res) => {
  * GET /api/groups/:id/thumbnail
  */
 exports.getThumbnail = async (req, res) => {
-  const group = await Group.findOne({ _id: req.params.id, owner: req.userId }).lean();
+  const group = await Group.findOne({ _id: req.params.id }).lean();
   if (!group) return res.status(404).json({ success: false, message: 'Group not found' });
   if (!group.thumbnailKey) return res.status(404).json({ success: false, message: 'No thumbnail' });
 
@@ -287,7 +286,7 @@ exports.getThumbnail = async (req, res) => {
  * DELETE /api/groups/:id/thumbnail
  */
 exports.removeThumbnail = async (req, res) => {
-  const group = await Group.findOne({ _id: req.params.id, owner: req.userId });
+  const group = await Group.findOne({ _id: req.params.id });
   if (!group) return res.status(404).json({ success: false, message: 'Group not found' });
   if (!group.thumbnailKey) {
     return res.json({ success: true, data: group, message: 'No thumbnail to remove' });
@@ -315,7 +314,7 @@ exports.reorder = async (req, res) => {
     return res.status(400).json({ success: false, message: 'trackIds must be an array' });
   }
 
-  const group = await Group.findOne({ _id: req.params.id, owner: req.userId });
+  const group = await Group.findOne({ _id: req.params.id });
   if (!group) return res.status(404).json({ success: false, message: 'Group not found' });
 
   if (trackIds.length !== group.tracks.length) {

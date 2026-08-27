@@ -13,6 +13,7 @@ const {
 const authRoutes = require("./routes/auth.routes");
 const trackRoutes = require("./routes/track.routes");
 const groupRoutes = require("./routes/group.routes");
+const albumRoutes = require("./routes/album.routes");
 const playerRoutes = require("./routes/player.routes");
 const userRoutes = require("./routes/user.routes");
 
@@ -62,6 +63,7 @@ app.get("/api/health", (_req, res) => {
 app.use("/api/auth", authRoutes);
 app.use("/api/tracks", trackRoutes);
 app.use("/api/groups", groupRoutes);
+app.use("/api/albums", albumRoutes);
 app.use("/api/player", playerRoutes);
 app.use("/api/users", userRoutes);
 

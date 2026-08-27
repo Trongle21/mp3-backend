@@ -5,6 +5,7 @@ const { PutObjectCommand, DeleteObjectCommand, HeadObjectCommand, GetObjectComma
 const { client: s3, BUCKET } = require('../config/r2');
 const Track = require('../models/Track');
 const Group = require('../models/Group');
+const Album = require('../models/Album');
 const { attachCoverUrl, attachCoverUrls } = require('../utils/mediaUrl');
 
 function extFromFilename(name) {
@@ -103,7 +104,7 @@ exports.upload = async (req, res) => {
   const track = await Track.create({
     title: req.body.title || meta.title || req.file.originalname.replace(/\.[^.]+$/, ''),
     artist: req.body.artist || meta.artist || 'Unknown Artist',
-    album: req.body.album || meta.album || '',
+    album: req.body.albumId || null,
     durationSec: meta.durationSec,
     fileKey,
     coverKey: uploadedCoverKey,
@@ -111,6 +112,26 @@ exports.upload = async (req, res) => {
     sizeBytes: req.file.size,
     owner: userId,
   });
+
+  // 5. Auto-thêm track vào album nếu user chỉ định.
+  if (req.body.albumId) {
+    try {
+      const album = await Album.findOne({ _id: req.body.albumId });
+      if (album) {
+        const exists = album.tracks.some((t) => t.track.toString() === track._id.toString());
+        if (!exists) {
+          const nextPos =
+            album.tracks.length > 0
+              ? Math.max(...album.tracks.map((t) => t.position)) + 1
+              : 0;
+          album.tracks.push({ track: track._id, position: nextPos });
+          await album.save();
+        }
+      }
+    } catch (err) {
+      console.warn('[track.upload] auto-add to album failed:', err.message);
+    }
+  }
 
   return res.status(201).json({ success: true, data: attachCoverUrl(track.toObject()) });
 };
@@ -123,7 +144,7 @@ exports.list = async (req, res) => {
   const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 20, 1), 100);
   const skip = (page - 1) * limit;
 
-  const filter = { owner: req.userId };
+  const filter = {};
 
   if (req.query.search) {
     const re = new RegExp(req.query.search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
@@ -134,8 +155,14 @@ exports.list = async (req, res) => {
   const sortKey = req.query.sort in allowedSort ? req.query.sort : 'createdAt';
   const sort = { [sortKey]: allowedSort[sortKey] };
 
+  if (req.query.albumId) {
+    try {
+      filter.album = new mongoose.Types.ObjectId(req.query.albumId);
+    } catch {}
+  }
+
   const [items, total] = await Promise.all([
-    Track.find(filter).sort(sort).skip(skip).limit(limit).lean(),
+    Track.find(filter).sort(sort).skip(skip).limit(limit).populate('album', 'title artist thumbnailKey').lean(),
     Track.countDocuments(filter),
   ]);
 
@@ -149,7 +176,7 @@ exports.list = async (req, res) => {
 };
 
 exports.getOne = async (req, res) => {
-  const track = await Track.findOne({ _id: req.params.id, owner: req.userId }).lean();
+  const track = await Track.findOne({ _id: req.params.id }).populate('album', 'title artist thumbnailKey').lean();
   if (!track) return res.status(404).json({ success: false, message: 'Track not found' });
   return res.json({ success: true, data: attachCoverUrl(track) });
 };
@@ -167,7 +194,7 @@ exports.update = async (req, res) => {
     return res.status(400).json({ success: false, message: 'No updatable fields supplied' });
   }
   const track = await Track.findOneAndUpdate(
-    { _id: req.params.id, owner: req.userId },
+    { _id: req.params.id },
     update,
     { new: true }
   ).lean();
@@ -180,12 +207,12 @@ exports.update = async (req, res) => {
  * Xoá document, đồng thời xoá file + cover trong R2 và gỡ khỏi các group liên quan.
  */
 exports.remove = async (req, res) => {
-  const track = await Track.findOne({ _id: req.params.id, owner: req.userId });
+  const track = await Track.findOne({ _id: req.params.id });
   if (!track) return res.status(404).json({ success: false, message: 'Track not found' });
 
-  // Gỡ khỏi các group của cùng user (không cần await — best effort).
+  // Gỡ khỏi mọi group (không lọc owner — group giờ chung).
   await Group.updateMany(
-    { owner: req.userId, 'tracks.track': track._id },
+    { 'tracks.track': track._id },
     { $pull: { tracks: { track: track._id } } }
   );
 
@@ -216,7 +243,7 @@ exports.uploadCover = async (req, res) => {
     return res.status(500).json({ success: false, message: 'R2 bucket not configured' });
   }
 
-  const track = await Track.findOne({ _id: req.params.id, owner: req.userId });
+  const track = await Track.findOne({ _id: req.params.id });
   if (!track) return res.status(404).json({ success: false, message: 'Track not found' });
 
   const ext = extFromFilename(req.file.originalname) || 'jpg';
@@ -256,7 +283,7 @@ exports.uploadCover = async (req, res) => {
  * Trả binary ảnh cover. Hỗ trợ Range request để browser cache/zoom.
  */
 exports.getCover = async (req, res) => {
-  const track = await Track.findOne({ _id: req.params.id, owner: req.userId }).lean();
+  const track = await Track.findOne({ _id: req.params.id }).select('coverKey').lean();
   if (!track) return res.status(404).json({ success: false, message: 'Track not found' });
   if (!track.coverKey) return res.status(404).json({ success: false, message: 'No cover art' });
 
@@ -345,7 +372,7 @@ exports.getCover = async (req, res) => {
  * DELETE /api/tracks/:id/cover
  */
 exports.removeCover = async (req, res) => {
-  const track = await Track.findOne({ _id: req.params.id, owner: req.userId });
+  const track = await Track.findOne({ _id: req.params.id });
   if (!track) return res.status(404).json({ success: false, message: 'Track not found' });
   if (!track.coverKey) {
     return res.json({ success: true, data: track, message: 'No cover to remove' });
@@ -376,7 +403,7 @@ exports.removeCover = async (req, res) => {
  *  5. Pipe body trực tiếp về res — KHÔNG buffer.
  */
 exports.stream = async (req, res) => {
-  const track = await Track.findOne({ _id: req.params.id, owner: req.userId }).lean();
+  const track = await Track.findOne({ _id: req.params.id }).select('fileKey').lean();
   if (!track) return res.status(404).json({ success: false, message: 'Track not found' });
 
   // 1. Lấy ContentLength qua HeadObject.
