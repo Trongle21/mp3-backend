@@ -1,0 +1,194 @@
+### =====================================================
+###   Music App Backend — API test file (.http / REST Client)
+###   Dùng extension VSCode "REST Client" hoặc IntelliJ HTTP Client
+### =====================================================
+
+@baseUrl = http://localhost:5000/api
+
+### ========== AUTH ==========
+
+### Register
+POST {{baseUrl}}/auth/register
+Content-Type: application/json
+
+{
+  "email": "test@example.com",
+  "password": "secret123",
+  "name": "Tester"
+}
+
+### Login
+# @name login
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+
+{
+  "email": "test@example.com",
+  "password": "secret123"
+}
+
+###
+@accessToken = {{login.response.body.data.accessToken}}
+@refreshToken = {{login.response.body.data.refreshToken}}
+@userId = {{login.response.body.data.user._id}}
+
+### Get current user
+GET {{baseUrl}}/auth/me
+Authorization: Bearer {{accessToken}}
+
+### Refresh access token
+POST {{baseUrl}}/auth/refresh
+Content-Type: application/json
+
+{
+  "refreshToken": "{{refreshToken}}"
+}
+
+
+### ========== TRACKS ==========
+
+### Upload a track (file is required as multipart/form-data, key: file)
+POST {{baseUrl}}/tracks/upload
+Authorization: Bearer {{accessToken}}
+Content-Type: multipart/form-data; boundary=boundary
+
+--boundary
+Content-Disposition: form-data; name="file"; filename="song.mp3"
+Content-Type: audio/mpeg
+
+< ./sample.mp3
+--boundary
+Content-Disposition: form-data; name="title"
+
+My Custom Title
+--boundary
+Content-Disposition: form-data; name="artist"
+
+Custom Artist
+--boundary--
+
+### List tracks (with search & sort & pagination)
+GET {{baseUrl}}/tracks?page=1&limit=20&sort=createdAt&search=
+Authorization: Bearer {{accessToken}}
+
+### Get one track
+GET {{baseUrl}}/tracks/{{trackId}}
+Authorization: Bearer {{accessToken}}
+
+### Update metadata
+PATCH {{baseUrl}}/tracks/{{trackId}}
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "title": "Renamed",
+  "artist": "Updated Artist"
+}
+
+### Stream track (NO Range — server trả toàn bộ file)
+GET {{baseUrl}}/tracks/{{trackId}}/stream
+Authorization: Bearer {{accessToken}}
+
+### Stream track với Range (200KB đầu) — phải trả 206 + Content-Range
+GET {{baseUrl}}/tracks/{{trackId}}/stream
+Authorization: Bearer {{accessToken}}
+Range: bytes=0-204799
+
+### Stream track từ giây thứ 30 (với duration ~180s, ~3MB, ~17KB/s => 510KB)
+GET {{baseUrl}}/tracks/{{trackId}}/stream
+Authorization: Bearer {{accessToken}}
+Range: bytes=510000-1023999
+
+### Delete track
+DELETE {{baseUrl}}/tracks/{{trackId}}
+Authorization: Bearer {{accessToken}}
+
+
+### ========== GROUPS / PLAYLISTS ==========
+
+### Create group
+# @name group
+POST {{baseUrl}}/groups
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "name": "My Favorites"
+}
+
+###
+@groupId = {{group.response.body.data._id}}
+
+### List groups
+GET {{baseUrl}}/groups
+Authorization: Bearer {{accessToken}}
+
+### Get group details (with tracks populated)
+GET {{baseUrl}}/groups/{{groupId}}
+Authorization: Bearer {{accessToken}}
+
+### Rename group
+PATCH {{baseUrl}}/groups/{{groupId}}
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "name": "Renamed Playlist"
+}
+
+### Add track to group
+POST {{baseUrl}}/groups/{{groupId}}/tracks
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "trackId": "{{trackId}}"
+}
+
+### Reorder tracks in group
+PATCH {{baseUrl}}/groups/{{groupId}}/reorder
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "trackIds": ["{{trackId}}"]
+}
+
+### Remove track from group
+DELETE {{baseUrl}}/groups/{{groupId}}/tracks/{{trackId}}
+Authorization: Bearer {{accessToken}}
+
+### Delete group
+DELETE {{baseUrl}}/groups/{{groupId}}
+Authorization: Bearer {{accessToken}}
+
+
+### ========== PLAYER STATE ==========
+
+### Get player state
+GET {{baseUrl}}/player/state
+Authorization: Bearer {{accessToken}}
+
+### Update player state (vd: play track ở 30s)
+PATCH {{baseUrl}}/player/state
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "currentTrack": "{{trackId}}",
+  "positionSec": 30,
+  "isPlaying": true,
+  "repeatMode": "all",
+  "shuffle": false,
+  "queue": []
+}
+
+### Update player state — chỉ đổi isPlaying
+PATCH {{baseUrl}}/player/state
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "isPlaying": false,
+  "positionSec": 0
+}

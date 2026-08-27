@@ -1,0 +1,1621 @@
+{
+  "info": {
+    "_postman_id": "music-app-backend-v1",
+    "name": "Music App Backend — Full Test Suite",
+    "description": "Test suite đầy đủ cho Backend Music App (Node.js + MongoDB + Cloudflare R2).\n\n**Yêu cầu trước khi chạy:**\n1. Server đang chạy: `npm run dev` trong thư mục `d:\\Another\\Mp3\\Backend`\n2. MongoDB local (Docker) hoặc Atlas đang accessible\n3. Cloudflare R2 credentials đã điền trong `.env`\n4. Đã chọn environment `Music App — Local` ở dropdown góc trên-phải\n\n**Thứ tự chạy:**\n1. Auth → Register → Login (lưu token tự động)\n2. Health\n3. Tracks: Upload → List → Get → Update → Stream (no range) → Stream (range) → Stream (range edges) → Delete\n4. Groups: Create → List → Get → Add track → Reorder → Get (verify order) → Remove track → Rename → Delete\n5. Player: Get state → Update state → Get state (verify) → Cleanup\n\n**Tự động hóa:** Folder `Tests` có script auto-save token, trackId, groupId vào environment để các request sau dùng được ngay.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:5000/api",
+      "type": "string"
+    },
+    {
+      "key": "testEmail",
+      "value": "tester+{{$randomInt}}@example.com",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "0. Health Check",
+      "item": [
+        {
+          "name": "GET /health — server running?",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/health",
+              "host": ["{{baseUrl}}"],
+              "path": ["health"]
+            },
+            "description": "Không cần auth. Nếu OK nghĩa là server + DB đều lên."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('success === true', () => pm.expect(pm.response.json().success).to.eql(true));",
+                  "pm.test('Has data.status === ok', () => pm.expect(pm.response.json().data.status).to.eql('ok'));",
+                  "console.log('Server time:', pm.response.json().data.ts);"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "1. Auth",
+      "item": [
+        {
+          "name": "POST /auth/register — happy path",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 201', () => pm.response.to.have.status(201));",
+                  "const body = pm.response.json();",
+                  "pm.test('success === true', () => pm.expect(body.success).to.eql(true));",
+                  "pm.test('Has accessToken + refreshToken', () => {",
+                  "  pm.expect(body.data.accessToken).to.be.a('string');",
+                  "  pm.expect(body.data.refreshToken).to.be.a('string');",
+                  "});",
+                  "pm.test('User có _id, email, name', () => {",
+                  "  pm.expect(body.data.user._id).to.be.a('string');",
+                  "  pm.expect(body.data.user.email).to.be.a('string');",
+                  "  pm.expect(body.data.user.email).to.not.include('passwordHash');",
+                  "});",
+                  "pm.environment.set('accessToken', body.data.accessToken);",
+                  "pm.environment.set('refreshToken', body.data.refreshToken);",
+                  "pm.environment.set('userId', body.data.user._id);",
+                  "console.log('UserId:', body.data.user._id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{testEmail}}\",\n  \"password\": \"secret123\",\n  \"name\": \"Tester {{$randomInt}}\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/register",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "register"]
+            },
+            "description": "Email random mỗi lần chạy để tránh 409 duplicate. Token sẽ được auto-save vào environment."
+          }
+        },
+        {
+          "name": "POST /auth/register — email đã tồn tại (409)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 409', () => pm.response.to.have.status(409));",
+                  "pm.test('success === false', () => pm.expect(pm.response.json().success).to.eql(false));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{testEmail}}\",\n  \"password\": \"secret123\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/register",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "register"]
+            }
+          }
+        },
+        {
+          "name": "POST /auth/register — validation fail (400)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 400', () => pm.response.to.have.status(400));",
+                  "pm.test('Có errors array', () => pm.expect(pm.response.json().errors).to.be.an('array'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"not-an-email\",\n  \"password\": \"123\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/register",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "register"]
+            }
+          }
+        },
+        {
+          "name": "POST /auth/login — happy path",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test('Có accessToken', () => pm.expect(body.data.accessToken).to.be.a('string'));",
+                  "pm.environment.set('accessToken', body.data.accessToken);",
+                  "pm.environment.set('refreshToken', body.data.refreshToken);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{testEmail}}\",\n  \"password\": \"secret123\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/login",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "login"]
+            }
+          }
+        },
+        {
+          "name": "POST /auth/login — sai password (401)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 401', () => pm.response.to.have.status(401));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{testEmail}}\",\n  \"password\": \"wrongpassword\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/login",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "login"]
+            }
+          }
+        },
+        {
+          "name": "GET /auth/me — happy path",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test('Trả về user đúng', () => {",
+                  "  pm.expect(body.data._id).to.eql(pm.environment.get('userId'));",
+                  "  pm.expect(body.data).to.not.have.property('passwordHash');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/auth/me",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "me"]
+            }
+          }
+        },
+        {
+          "name": "GET /auth/me — missing token (401)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 401', () => pm.response.to.have.status(401));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/auth/me",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "me"]
+            }
+          }
+        },
+        {
+          "name": "GET /auth/me — invalid token (401)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 401', () => pm.response.to.have.status(401));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer abc.invalid.token" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/auth/me",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "me"]
+            }
+          }
+        },
+        {
+          "name": "POST /auth/refresh — lấy accessToken mới",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test('Có accessToken mới', () => pm.expect(body.data.accessToken).to.be.a('string'));",
+                  "pm.environment.set('accessToken', body.data.accessToken);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"refreshToken\": \"{{refreshToken}}\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/refresh",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "refresh"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "2. Tracks",
+      "item": [
+        {
+          "name": "POST /tracks/upload — happy path (multipart)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 201', () => pm.response.to.have.status(201));",
+                  "const body = pm.response.json();",
+                  "pm.test('Track có _id', () => pm.expect(body.data._id).to.be.a('string'));",
+                  "pm.test('Track có title + artist + durationSec', () => {",
+                  "  pm.expect(body.data.title).to.be.a('string');",
+                  "  pm.expect(body.data.durationSec).to.be.a('number');",
+                  "  pm.expect(body.data.durationSec).to.be.greaterThan(0);",
+                  "});",
+                  "pm.test('Track có fileKey + sizeBytes > 0', () => {",
+                  "  pm.expect(body.data.fileKey).to.be.a('string');",
+                  "  pm.expect(body.data.sizeBytes).to.be.greaterThan(0);",
+                  "});",
+                  "pm.environment.set('trackId', body.data._id);",
+                  "pm.environment.set('trackTitle', body.data.title);",
+                  "console.log('TrackId:', body.data._id);",
+                  "console.log('Duration:', body.data.durationSec, 's');",
+                  "console.log('Size:', body.data.sizeBytes, 'bytes');"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" }
+            ],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "file",
+                  "type": "file",
+                  "src": "sample.mp3",
+                  "description": "Chọn file MP3 bất kỳ trong máy (≤ 50MB). Có ID3 tags sẽ tự extract title/artist/cover."
+                },
+                {
+                  "key": "title",
+                  "value": "Custom Title Override",
+                  "type": "text",
+                  "description": "Optional: override ID3 title"
+                },
+                {
+                  "key": "artist",
+                  "value": "Custom Artist",
+                  "type": "text"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/tracks/upload",
+              "host": ["{{baseUrl}}"],
+              "path": ["tracks", "upload"]
+            },
+            "description": "**Quan trọng:** Thay file `sample.mp3` bằng file MP3 thật trong máy bạn (qua Postman UI → form-data → file → Select Files). Server sẽ parse ID3 tags để lấy title/artist/cover."
+          }
+        },
+        {
+          "name": "POST /tracks/upload — missing file (400)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 400', () => pm.response.to.have.status(400));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" }
+            ],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                { "key": "title", "value": "No file", "type": "text" }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/tracks/upload",
+              "host": ["{{baseUrl}}"],
+              "path": ["tracks", "upload"]
+            }
+          }
+        },
+        {
+          "name": "POST /tracks/upload — sai MIME type (400)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 400', () => pm.response.to.have.status(400));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" }
+            ],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "file",
+                  "type": "file",
+                  "src": "test.txt",
+                  "description": "Upload file text để trigger mime-type validation"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/tracks/upload",
+              "host": ["{{baseUrl}}"],
+              "path": ["tracks", "upload"]
+            }
+          }
+        },
+        {
+          "name": "GET /tracks — list với pagination mặc định",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test('Trả về array', () => pm.expect(body.data).to.be.an('array'));",
+                  "pm.test('Có pagination', () => {",
+                  "  pm.expect(body.pagination).to.have.property('page');",
+                  "  pm.expect(body.pagination).to.have.property('limit');",
+                  "  pm.expect(body.pagination).to.have.property('total');",
+                  "  pm.expect(body.pagination).to.have.property('totalPages');",
+                  "});",
+                  "console.log('Total tracks:', body.pagination.total);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/tracks?page=1&limit=20",
+              "host": ["{{baseUrl}}"],
+              "path": ["tracks"],
+              "query": [
+                { "key": "page", "value": "1" },
+                { "key": "limit", "value": "20" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "GET /tracks — search theo title",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "console.log('Found:', pm.response.json().data.length, 'tracks');"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/tracks?search=Custom",
+              "host": ["{{baseUrl}}"],
+              "path": ["tracks"],
+              "query": [
+                { "key": "search", "value": "Custom" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "GET /tracks — sort by title",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const arr = pm.response.json().data;",
+                  "if (arr.length > 1) {",
+                  "  pm.test('Đúng thứ tự alphabet', () => {",
+                  "    for (let i = 1; i < arr.length; i++) {",
+                  "      pm.expect(arr[i].title.localeCompare(arr[i-1].title)).to.be.at.least(0);",
+                  "    }",
+                  "  });",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/tracks?sort=title",
+              "host": ["{{baseUrl}}"],
+              "path": ["tracks"],
+              "query": [
+                { "key": "sort", "value": "title" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "GET /tracks/:id — happy path",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('_id khớp', () => pm.expect(pm.response.json().data._id).to.eql(pm.environment.get('trackId')));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/tracks/{{trackId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["tracks", "{{trackId}}"]
+            }
+          }
+        },
+        {
+          "name": "GET /tracks/:id — invalid ObjectId (400)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 400', () => pm.response.to.have.status(400));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/tracks/not-an-id",
+              "host": ["{{baseUrl}}"],
+              "path": ["tracks", "not-an-id"]
+            }
+          }
+        },
+        {
+          "name": "GET /tracks/:id — id không tồn tại (404)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 404', () => pm.response.to.have.status(404));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/tracks/000000000000000000000000",
+              "host": ["{{baseUrl}}"],
+              "path": ["tracks", "000000000000000000000000"]
+            }
+          }
+        },
+        {
+          "name": "PATCH /tracks/:id — update metadata",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test('Title đã update', () => pm.expect(body.data.title).to.eql('Updated Title via Postman'));",
+                  "pm.test('Artist đã update', () => pm.expect(body.data.artist).to.eql('Updated Artist'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Updated Title via Postman\",\n  \"artist\": \"Updated Artist\",\n  \"album\": \"Updated Album\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/tracks/{{trackId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["tracks", "{{trackId}}"]
+            }
+          }
+        },
+        {
+          "name": "GET /tracks/:id/stream — FULL (no Range) → 200",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Có Accept-Ranges header', () => pm.expect(pm.response.headers.get('Accept-Ranges')).to.eql('bytes'));",
+                  "pm.test('Có Content-Length > 0', () => {",
+                  "  const cl = parseInt(pm.response.headers.get('Content-Length'));",
+                  "  pm.expect(cl).to.be.greaterThan(0);",
+                  "});",
+                  "pm.test('Content-Type audio/*', () => pm.expect(pm.response.headers.get('Content-Type')).to.match(/^audio\\//));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/tracks/{{trackId}}/stream",
+              "host": ["{{baseUrl}}"],
+              "path": ["tracks", "{{trackId}}", "stream"]
+            },
+            "description": "Quan trọng: response phải là binary audio, không phải JSON."
+          }
+        },
+        {
+          "name": "GET /tracks/:id/stream — Range 0-1023 → 206",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 206', () => pm.response.to.have.status(206));",
+                  "pm.test('Có Content-Range header', () => {",
+                  "  const cr = pm.response.headers.get('Content-Range');",
+                  "  pm.expect(cr).to.match(/^bytes 0-1023\\//);",
+                  "});",
+                  "pm.test('Content-Length ≈ 1024', () => {",
+                  "  const cl = parseInt(pm.response.headers.get('Content-Length'));",
+                  "  pm.expect(cl).to.be.at.least(1024);",
+                  "  pm.expect(cl).to.be.at.most(1025);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "Range", "value": "bytes=0-1023" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/tracks/{{trackId}}/stream",
+              "host": ["baseUrl"],
+              "path": ["tracks", "{{trackId}}", "stream"]
+            },
+            "description": "**TEST QUAN TRỌNG NHẤT**: Range request phải trả 206 Partial Content, không phải 200. Đây là cốt lõi để audio player tua được mượt."
+          }
+        },
+        {
+          "name": "GET /tracks/:id/stream — suffix range (-1024) → 206",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 206', () => pm.response.to.have.status(206));",
+                  "const cr = pm.response.headers.get('Content-Range');",
+                  "pm.test('Content-Range đúng format suffix', () => {",
+                  "  const m = cr.match(/^bytes (\\d+)-(\\d+)\\/(\\d+)$/);",
+                  "  pm.expect(m).to.not.be.null;",
+                  "  const [start, end, total] = [parseInt(m[1]), parseInt(m[2]), parseInt(m[3])];",
+                  "  pm.expect(total - start + 1).to.eql(1024);",
+                  "  pm.expect(end).to.eql(total - 1);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "Range", "value": "bytes=-1024" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/tracks/{{trackId}}/stream",
+              "host": ["{{baseUrl}}"],
+              "path": ["tracks", "{{trackId}}", "stream"]
+            },
+            "description": "Suffix range: lấy 1024 byte cuối file."
+          }
+        },
+        {
+          "name": "GET /tracks/:id/stream — open-ended range (1024-) → 206",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 206', () => pm.response.to.have.status(206));",
+                  "pm.test('Content-Range bắt đầu từ 1024', () => {",
+                  "  const cr = pm.response.headers.get('Content-Range');",
+                  "  const m = cr.match(/^bytes 1024-(\\d+)\\/(\\d+)$/);",
+                  "  pm.expect(m).to.not.be.null;",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "Range", "value": "bytes=1024-" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/tracks/{{trackId}}/stream",
+              "host": ["{{baseUrl}}"],
+              "path": ["tracks", "{{trackId}}", "stream"]
+            }
+          }
+        },
+        {
+          "name": "GET /tracks/:id/stream — invalid range (out of bounds) → 416",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 416', () => pm.response.to.have.status(416));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "Range", "value": "bytes=99999999-" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/tracks/{{trackId}}/stream",
+              "host": ["{{baseUrl}}"],
+              "path": ["tracks", "{{trackId}}", "stream"]
+            }
+          }
+        },
+        {
+          "name": "GET /tracks/:id/stream — invalid range format → 416",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 416', () => pm.response.to.have.status(416));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "Range", "value": "bytes=abc-def" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/tracks/{{trackId}}/stream",
+              "host": ["{{baseUrl}}"],
+              "path": ["tracks", "{{trackId}}", "stream"]
+            }
+          }
+        },
+        {
+          "name": "GET /tracks/:id/stream — missing auth (401)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 401', () => pm.response.to.have.status(401));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/tracks/{{trackId}}/stream",
+              "host": ["{{baseUrl}}"],
+              "path": ["tracks", "{{trackId}}", "stream"]
+            }
+          }
+        },
+        {
+          "name": "DELETE /tracks/:id — happy path (sau khi test xong)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Trả về id khớp', () => pm.expect(pm.response.json().data.id).to.eql(pm.environment.get('trackId')));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/tracks/{{trackId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["tracks", "{{trackId}}"]
+            },
+            "description": "**CHẠY CUỐI CÙNG trong folder Tracks.** Sau khi delete, upload lại nếu muốn test tiếp."
+          }
+        },
+        {
+          "name": "DELETE /tracks/:id — invalid id (400)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 400', () => pm.response.to.have.status(400));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/tracks/bad-id",
+              "host": ["{{baseUrl}}"],
+              "path": ["tracks", "bad-id"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "3. Groups",
+      "item": [
+        {
+          "name": "POST /groups — create group 1",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 201', () => pm.response.to.have.status(201));",
+                  "const body = pm.response.json();",
+                  "pm.test('Có _id và tracks = []', () => {",
+                  "  pm.expect(body.data._id).to.be.a('string');",
+                  "  pm.expect(body.data.tracks).to.be.an('array').that.is.empty;",
+                  "});",
+                  "pm.environment.set('groupId', body.data._id);",
+                  "console.log('GroupId:', body.data._id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"My Playlist {{$randomInt}}\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/groups",
+              "host": ["{{baseUrl}}"],
+              "path": ["groups"]
+            }
+          }
+        },
+        {
+          "name": "POST /groups — empty name (400)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 400', () => pm.response.to.have.status(400));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{ \"name\": \"\" }"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/groups",
+              "host": ["{{baseUrl}}"],
+              "path": ["groups"]
+            }
+          }
+        },
+        {
+          "name": "GET /groups — list all",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Trả về array', () => pm.expect(pm.response.json().data).to.be.an('array'));",
+                  "console.log('Total groups:', pm.response.json().data.length);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/groups",
+              "host": ["{{baseUrl}}"],
+              "path": ["groups"]
+            }
+          }
+        },
+        {
+          "name": "GET /groups/:id — get populated",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('tracks là array', () => pm.expect(pm.response.json().data.tracks).to.be.an('array'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/groups/{{groupId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["groups", "{{groupId}}"]
+            }
+          }
+        },
+        {
+          "name": "POST /groups/:id/tracks — add track",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test('Track đã được thêm', () => pm.expect(body.data.tracks.length).to.be.at.least(1));",
+                  "pm.test('Có position', () => {",
+                  "  const last = body.data.tracks[body.data.tracks.length - 1];",
+                  "  pm.expect(last.position).to.be.a('number');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"trackId\": \"{{trackId}}\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/groups/{{groupId}}/tracks",
+              "host": ["{{baseUrl}}"],
+              "path": ["groups", "{{groupId}}", "tracks"]
+            },
+            "description": "Lưu ý: chỉ chạy được khi `trackId` đã có (sau khi upload track thành công)."
+          }
+        },
+        {
+          "name": "POST /groups/:id/tracks — duplicate (idempotent)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Message báo track đã có', () => pm.expect(pm.response.json().message).to.include('already'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"trackId\": \"{{trackId}}\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/groups/{{groupId}}/tracks",
+              "host": ["{{baseUrl}}"],
+              "path": ["groups", "{{groupId}}", "tracks"]
+            }
+          }
+        },
+        {
+          "name": "POST /groups/:id/tracks — invalid trackId (400)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 400', () => pm.response.to.have.status(400));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{ \"trackId\": \"invalid-id\" }"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/groups/{{groupId}}/tracks",
+              "host": ["{{baseUrl}}"],
+              "path": ["groups", "{{groupId}}", "tracks"]
+            }
+          }
+        },
+        {
+          "name": "GET /groups/:id — verify track đã được populate",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const tracks = pm.response.json().data.tracks;",
+                  "pm.test('Track được populate với title', () => {",
+                  "  pm.expect(tracks[0].track).to.have.property('title');",
+                  "  pm.expect(tracks[0].track).to.have.property('fileKey');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/groups/{{groupId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["groups", "{{groupId}}"]
+            }
+          }
+        },
+        {
+          "name": "DELETE /groups/:id/tracks/:trackId — remove track",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Track đã bị xoá', () => pm.expect(pm.response.json().data.tracks).to.be.an('array').that.is.empty);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/groups/{{groupId}}/tracks/{{trackId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["groups", "{{groupId}}", "tracks", "{{trackId}}"]
+            }
+          }
+        },
+        {
+          "name": "POST /groups/:id/tracks — add lại để test reorder",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{ \"trackId\": \"{{trackId}}\" }"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/groups/{{groupId}}/tracks",
+              "host": ["{{baseUrl}}"],
+              "path": ["groups", "{{groupId}}", "tracks"]
+            }
+          }
+        },
+        {
+          "name": "PATCH /groups/:id/reorder",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"trackIds\": [\"{{trackId}}\"]\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/groups/{{groupId}}/reorder",
+              "host": ["{{baseUrl}}"],
+              "path": ["groups", "{{groupId}}", "reorder"]
+            }
+          }
+        },
+        {
+          "name": "PATCH /groups/:id/reorder — empty array (400)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 400', () => pm.response.to.have.status(400));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{ \"trackIds\": [] }"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/groups/{{groupId}}/reorder",
+              "host": ["{{baseUrl}}"],
+              "path": ["groups", "{{groupId}}", "reorder"]
+            }
+          }
+        },
+        {
+          "name": "PATCH /groups/:id — rename",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Name đã update', () => pm.expect(pm.response.json().data.name).to.eql('Renamed Playlist'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{ \"name\": \"Renamed Playlist\" }"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/groups/{{groupId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["groups", "{{groupId}}"]
+            }
+          }
+        },
+        {
+          "name": "DELETE /groups/:id — delete group",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/groups/{{groupId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["groups", "{{groupId}}"]
+            }
+          }
+        },
+        {
+          "name": "GET /groups/:id — sau khi delete (404)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 404', () => pm.response.to.have.status(404));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/groups/{{groupId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["groups", "{{groupId}}"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "4. Player State",
+      "item": [
+        {
+          "name": "GET /player/state — first time (default state)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const data = pm.response.json().data;",
+                  "pm.test('Default: isPlaying=false', () => pm.expect(data.isPlaying).to.eql(false));",
+                  "pm.test('Default: repeatMode=off', () => pm.expect(data.repeatMode).to.eql('off'));",
+                  "pm.test('Default: queue=[]', () => pm.expect(data.queue).to.be.an('array').that.is.empty));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/player/state",
+              "host": ["{{baseUrl}}"],
+              "path": ["player", "state"]
+            }
+          }
+        },
+        {
+          "name": "PATCH /player/state — set current track + playing",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const data = pm.response.json().data;",
+                  "pm.test('isPlaying = true', () => pm.expect(data.isPlaying).to.eql(true));",
+                  "pm.test('repeatMode = all', () => pm.expect(data.repeatMode).to.eql('all'));",
+                  "pm.test('currentTrack populated', () => pm.expect(data.currentTrack._id).to.eql(pm.environment.get('trackId')));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"currentTrack\": \"{{trackId}}\",\n  \"positionSec\": 30,\n  \"isPlaying\": true,\n  \"queue\": [\"{{trackId}}\"],\n  \"repeatMode\": \"all\",\n  \"shuffle\": false\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/player/state",
+              "host": ["{{baseUrl}}"],
+              "path": ["player", "state"]
+            },
+            "description": "Cần `trackId` đã có. Nếu đã delete track ở folder trước, upload lại."
+          }
+        },
+        {
+          "name": "PATCH /player/state — chỉ update positionSec",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('positionSec đã update', () => pm.expect(pm.response.json().data.positionSec).to.eql(120));",
+                  "pm.test('isPlaying vẫn true (không bị reset)', () => pm.expect(pm.response.json().data.isPlaying).to.eql(true));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{ \"positionSec\": 120 }"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/player/state",
+              "host": ["{{baseUrl}}"],
+              "path": ["player", "state"]
+            }
+          }
+        },
+        {
+          "name": "PATCH /player/state — invalid repeatMode (400)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 400', () => pm.response.to.have.status(400));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{ \"repeatMode\": \"invalid-mode\" }"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/player/state",
+              "host": ["{{baseUrl}}"],
+              "path": ["player", "state"]
+            }
+          }
+        },
+        {
+          "name": "GET /player/state — verify persisted",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const data = pm.response.json().data;",
+                  "pm.test('positionSec = 120 (đã persist)', () => pm.expect(data.positionSec).to.eql(120));",
+                  "pm.test('isPlaying = true (đã persist)', () => pm.expect(data.isPlaying).to.eql(true));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/player/state",
+              "host": ["{{baseUrl}}"],
+              "path": ["player", "state"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "5. Auth Cross-User (Authorization)",
+      "item": [
+        {
+          "name": "POST /auth/register — user B",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 201', () => pm.response.to.have.status(201));",
+                  "const body = pm.response.json();",
+                  "pm.environment.set('accessTokenB', body.data.accessToken);",
+                  "pm.environment.set('userIdB', body.data.user._id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"userB+{{$randomInt}}@example.com\",\n  \"password\": \"secret456\",\n  \"name\": \"User B\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/register",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "register"]
+            }
+          }
+        },
+        {
+          "name": "GET /tracks/:id — user B xem track của user A (404 hoặc chỉ thấy của mình)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 404 — user B không thấy track của user A', () => pm.response.to.have.status(404));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessTokenB}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/tracks/{{trackId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["tracks", "{{trackId}}"]
+            },
+            "description": "Test authorization: track thuộc user A, user B không được phép xem."
+          }
+        },
+        {
+          "name": "GET /tracks — user B thấy 0 tracks (data isolation)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('User B có 0 tracks (data isolation OK)', () => pm.expect(pm.response.json().data).to.be.an('array').that.is.empty);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessTokenB}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/tracks",
+              "host": ["{{baseUrl}}"],
+              "path": ["tracks"]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}
