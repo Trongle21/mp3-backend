@@ -5,6 +5,7 @@ const { PutObjectCommand, DeleteObjectCommand, HeadObjectCommand, GetObjectComma
 const { client: s3, BUCKET } = require('../config/r2');
 const Track = require('../models/Track');
 const Group = require('../models/Group');
+const { attachCoverUrl, attachCoverUrls } = require('../utils/mediaUrl');
 
 function extFromFilename(name) {
   const i = name.lastIndexOf('.');
@@ -111,7 +112,7 @@ exports.upload = async (req, res) => {
     owner: userId,
   });
 
-  return res.status(201).json({ success: true, data: track });
+  return res.status(201).json({ success: true, data: attachCoverUrl(track.toObject()) });
 };
 
 /**
@@ -138,6 +139,8 @@ exports.list = async (req, res) => {
     Track.countDocuments(filter),
   ]);
 
+  attachCoverUrls(items);
+
   return res.json({
     success: true,
     data: items,
@@ -148,7 +151,7 @@ exports.list = async (req, res) => {
 exports.getOne = async (req, res) => {
   const track = await Track.findOne({ _id: req.params.id, owner: req.userId }).lean();
   if (!track) return res.status(404).json({ success: false, message: 'Track not found' });
-  return res.json({ success: true, data: track });
+  return res.json({ success: true, data: attachCoverUrl(track) });
 };
 
 /**
@@ -167,9 +170,9 @@ exports.update = async (req, res) => {
     { _id: req.params.id, owner: req.userId },
     update,
     { new: true }
-  );
+  ).lean();
   if (!track) return res.status(404).json({ success: false, message: 'Track not found' });
-  return res.json({ success: true, data: track });
+  return res.json({ success: true, data: attachCoverUrl(track) });
 };
 
 /**
@@ -245,7 +248,7 @@ exports.uploadCover = async (req, res) => {
   track.coverKey = coverKey;
   await track.save();
 
-  return res.json({ success: true, data: track });
+  return res.json({ success: true, data: attachCoverUrl(track.toObject()) });
 };
 
 /**

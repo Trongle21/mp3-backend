@@ -4,6 +4,12 @@ const { PutObjectCommand, DeleteObjectCommand, HeadObjectCommand, GetObjectComma
 const { client: s3, BUCKET } = require('../config/r2');
 const Group = require('../models/Group');
 const Track = require('../models/Track');
+const {
+  attachThumbnailUrl,
+  attachThumbnailUrls,
+  attachCoverUrl,
+  attachCoverUrls,
+} = require('../utils/mediaUrl');
 
 function ensureObjectId(id) {
   return mongoose.Types.ObjectId.isValid(id);
@@ -27,7 +33,7 @@ function mimeFromImageExt(ext) {
 
 exports.create = async (req, res) => {
   const group = await Group.create({ name: req.body.name, owner: req.userId, tracks: [] });
-  return res.status(201).json({ success: true, data: group });
+  return res.status(201).json({ success: true, data: attachThumbnailUrl(group.toObject()) });
 };
 
 /**
@@ -37,9 +43,10 @@ exports.create = async (req, res) => {
 exports.list = async (req, res) => {
   const groups = await Group.aggregate([
     { $match: { owner: new mongoose.Types.ObjectId(req.userId) } },
-    { $project: { name: 1, createdAt: 1, updatedAt: 1, trackCount: { $size: '$tracks' } } },
+    { $project: { name: 1, thumbnailKey: 1, createdAt: 1, updatedAt: 1, trackCount: { $size: '$tracks' } } },
     { $sort: { updatedAt: -1 } },
   ]);
+  attachThumbnailUrls(groups);
   return res.json({ success: true, data: groups });
 };
 
@@ -58,7 +65,15 @@ exports.getOne = async (req, res) => {
 
   // Sắp xếp theo position tăng dần.
   group.tracks.sort((a, b) => a.position - b.position);
-  return res.json({ success: true, data: group });
+
+  // Gắn URL cho group + từng track bên trong.
+  const out = attachThumbnailUrl(group.toObject());
+  if (Array.isArray(out.tracks)) {
+    for (const slot of out.tracks) {
+      if (slot.track && typeof slot.track === 'object') attachCoverUrl(slot.track);
+    }
+  }
+  return res.json({ success: true, data: out });
 };
 
 exports.rename = async (req, res) => {
@@ -69,9 +84,9 @@ exports.rename = async (req, res) => {
     { _id: req.params.id, owner: req.userId },
     { name: req.body.name },
     { new: true }
-  );
+  ).lean();
   if (!group) return res.status(404).json({ success: false, message: 'Group not found' });
-  return res.json({ success: true, data: group });
+  return res.json({ success: true, data: attachThumbnailUrl(group) });
 };
 
 exports.remove = async (req, res) => {
@@ -109,7 +124,8 @@ exports.addTrack = async (req, res) => {
   group.tracks.push({ track: trackId, position: nextPosition });
   await group.save();
 
-  return res.json({ success: true, data: group });
+  const out = attachThumbnailUrl(group.toObject());
+  return res.json({ success: true, data: out });
 };
 
 /**
@@ -129,7 +145,7 @@ exports.removeTrack = async (req, res) => {
   group.tracks.forEach((t, i) => { t.position = i; });
   await group.save();
 
-  return res.json({ success: true, data: group });
+  return res.json({ success: true, data: attachThumbnailUrl(group.toObject()) });
 };
 
 /**
@@ -175,7 +191,7 @@ exports.uploadThumbnail = async (req, res) => {
   group.thumbnailKey = thumbnailKey;
   await group.save();
 
-  return res.json({ success: true, data: group });
+  return res.json({ success: true, data: attachThumbnailUrl(group.toObject()) });
 };
 
 /**
@@ -287,7 +303,7 @@ exports.removeThumbnail = async (req, res) => {
     console.warn('[group.removeThumbnail] R2 delete failed:', err.message);
   }
 
-  return res.json({ success: true, data: group });
+  return res.json({ success: true, data: attachThumbnailUrl(group.toObject()) });
 };
 
 /**
@@ -323,5 +339,5 @@ exports.reorder = async (req, res) => {
   group.tracks.forEach((t, idx) => { t.position = idx; });
 
   await group.save();
-  return res.json({ success: true, data: group });
+  return res.json({ success: true, data: attachThumbnailUrl(group.toObject()) });
 };
