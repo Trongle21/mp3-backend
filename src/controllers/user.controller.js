@@ -1,22 +1,42 @@
-const crypto = require('crypto');
-const { PutObjectCommand, DeleteObjectCommand } = require('@aws-sdk/client-s3');
-const { client: s3, BUCKET } = require('../config/r2');
-const User = require('../models/User');
+const crypto = require("crypto");
+const { PutObjectCommand, DeleteObjectCommand } = require("@aws-sdk/client-s3");
+const { client: s3, BUCKET, PUBLIC_URL } = require("../config/r2");
+const User = require("../models/User");
+
+function buildAvatarUrl(key) {
+  if (!key) return null;
+  const base = (PUBLIC_URL || "").replace(/\/$/, "");
+  if (!base) return null;
+  const normalized = key.startsWith("/") ? key.slice(1) : key;
+  return `${base}/${normalized}`;
+}
+
+function attachAvatarUrl(user) {
+  if (!user) return user;
+  user.avatarUrl = buildAvatarUrl(user.avatarKey);
+  return user;
+}
+
+function attachAvatarUrls(users) {
+  if (!Array.isArray(users)) return users;
+  for (const u of users) attachAvatarUrl(u);
+  return users;
+}
 
 function extFromFilename(name) {
-  const i = name.lastIndexOf('.');
-  return i >= 0 ? name.slice(i + 1).toLowerCase() : 'jpg';
+  const i = name.lastIndexOf(".");
+  return i >= 0 ? name.slice(i + 1).toLowerCase() : "jpg";
 }
 
 function mimeFromImageExt(ext) {
   const map = {
-    jpg: 'image/jpeg',
-    jpeg: 'image/jpeg',
-    png: 'image/png',
-    webp: 'image/webp',
-    gif: 'image/gif',
+    jpg: "image/jpeg",
+    jpeg: "image/jpeg",
+    png: "image/png",
+    webp: "image/webp",
+    gif: "image/gif",
   };
-  return map[ext] || 'image/jpeg';
+  return map[ext] || "image/jpeg";
 }
 
 /**
@@ -25,9 +45,10 @@ function mimeFromImageExt(ext) {
  */
 exports.list = async (req, res) => {
   const users = await User.find({})
-    .select('_id email name isAdmin avatarUrl birthdate gender createdAt')
+    .select("_id email name isAdmin avatarKey birthdate gender createdAt")
     .sort({ createdAt: -1 })
     .lean();
+  attachAvatarUrls(users);
   return res.json({ success: true, data: users });
 };
 
@@ -45,16 +66,18 @@ exports.updateRole = async (req, res) => {
   const { id } = req.params;
 
   if (id === req.userId) {
-    return res.status(400).json({ success: false, message: 'Cannot change your own role' });
+    return res
+      .status(400)
+      .json({ success: false, message: "Cannot change your own role" });
   }
 
   const target = await User.findById(id);
   if (!target) {
-    return res.status(404).json({ success: false, message: 'User not found' });
+    return res.status(404).json({ success: false, message: "User not found" });
   }
 
   const newRole = req.body.isAdmin;
-  const valid = ['normal', 'master', null];
+  const valid = ["normal", "master", null];
   if (!valid.includes(newRole)) {
     return res.status(400).json({
       success: false,
@@ -63,29 +86,21 @@ exports.updateRole = async (req, res) => {
   }
 
   // Ràng buộc: master không thể promote bất kỳ ai lên master
-  if (req.isAdmin === 'master' && newRole === 'master') {
+  if (req.isAdmin === "master" && newRole === "master") {
     return res.status(403).json({
       success: false,
-      message: 'Only a master can create another master',
+      message: "Only a master can create another master",
     });
   }
 
   target.isAdmin = newRole;
   await target.save();
 
-  return res.json({
-    success: true,
-    data: {
-      _id: target._id,
-      email: target.email,
-      name: target.name,
-      isAdmin: target.isAdmin,
-      avatarUrl: target.avatarUrl,
-      birthdate: target.birthdate,
-      gender: target.gender,
-      createdAt: target.createdAt,
-    },
-  });
+  const data = attachAvatarUrl(target.toObject());
+  delete data.passwordHash;
+  delete data.avatarKey;
+
+  return res.json({ success: true, data });
 };
 
 /**
@@ -98,21 +113,26 @@ exports.updateUser = async (req, res) => {
   const { id } = req.params;
 
   if (id === req.userId) {
-    return res.status(400).json({ success: false, message: 'Cannot edit your own profile here — use /me' });
+    return res
+      .status(400)
+      .json({
+        success: false,
+        message: "Cannot edit your own profile here — use /me",
+      });
   }
 
   const target = await User.findById(id);
   if (!target) {
-    return res.status(404).json({ success: false, message: 'User not found' });
+    return res.status(404).json({ success: false, message: "User not found" });
   }
 
-  const allowed = ['name', 'birthdate', 'gender'];
+  const allowed = ["name", "birthdate", "gender"];
   const update = {};
   const errors = [];
 
   if (req.body.name !== undefined) {
-    if (typeof req.body.name !== 'string') {
-      errors.push({ field: 'name', msg: 'name must be a string' });
+    if (typeof req.body.name !== "string") {
+      errors.push({ field: "name", msg: "name must be a string" });
     } else {
       update.name = req.body.name.trim();
     }
@@ -124,7 +144,7 @@ exports.updateUser = async (req, res) => {
     } else {
       const d = new Date(req.body.birthdate);
       if (isNaN(d.getTime())) {
-        errors.push({ field: 'birthdate', msg: 'Invalid date format' });
+        errors.push({ field: "birthdate", msg: "Invalid date format" });
       } else {
         update.birthdate = d;
       }
@@ -132,27 +152,38 @@ exports.updateUser = async (req, res) => {
   }
 
   if (req.body.gender !== undefined) {
-    const valid = ['male', 'female', 'other', null];
+    const valid = ["male", "female", "other", null];
     if (!valid.includes(req.body.gender)) {
-      errors.push({ field: 'gender', msg: 'gender must be male, female, other, or null' });
+      errors.push({
+        field: "gender",
+        msg: "gender must be male, female, other, or null",
+      });
     } else {
       update.gender = req.body.gender;
     }
   }
 
   if (errors.length > 0) {
-    return res.status(400).json({ success: false, message: 'Validation failed', errors });
+    return res
+      .status(400)
+      .json({ success: false, message: "Validation failed", errors });
   }
 
   if (Object.keys(update).length === 0) {
-    return res.status(400).json({ success: false, message: 'No updatable fields supplied' });
+    return res
+      .status(400)
+      .json({ success: false, message: "No updatable fields supplied" });
   }
 
   // Không bao giờ cho sửa email
   Object.assign(target, update);
   await target.save();
 
-  return res.json({ success: true, data: target });
+  const data = attachAvatarUrl(target.toObject());
+  delete data.passwordHash;
+  delete data.avatarKey;
+
+  return res.json({ success: true, data });
 };
 
 /**
@@ -161,7 +192,8 @@ exports.updateUser = async (req, res) => {
  */
 exports.getProfile = async (req, res) => {
   const user = await User.findById(req.userId);
-  if (!user) return res.status(404).json({ success: false, message: 'User not found' });
+  if (!user)
+    return res.status(404).json({ success: false, message: "User not found" });
   return res.json({ success: true, data: user });
 };
 
@@ -171,13 +203,13 @@ exports.getProfile = async (req, res) => {
  * Không cho phép tự thay đổi isAdmin.
  */
 exports.updateProfile = async (req, res) => {
-  const allowed = ['name', 'birthdate', 'gender'];
+  const allowed = ["name", "birthdate", "gender"];
   const update = {};
   const errors = [];
 
   if (req.body.name !== undefined) {
-    if (typeof req.body.name !== 'string') {
-      errors.push({ field: 'name', msg: 'name must be a string' });
+    if (typeof req.body.name !== "string") {
+      errors.push({ field: "name", msg: "name must be a string" });
     } else {
       update.name = req.body.name.trim();
     }
@@ -189,7 +221,7 @@ exports.updateProfile = async (req, res) => {
     } else {
       const d = new Date(req.body.birthdate);
       if (isNaN(d.getTime())) {
-        errors.push({ field: 'birthdate', msg: 'Invalid date format' });
+        errors.push({ field: "birthdate", msg: "Invalid date format" });
       } else {
         update.birthdate = d;
       }
@@ -197,25 +229,33 @@ exports.updateProfile = async (req, res) => {
   }
 
   if (req.body.gender !== undefined) {
-    const valid = ['male', 'female', 'other', null];
+    const valid = ["male", "female", "other", null];
     if (!valid.includes(req.body.gender)) {
-      errors.push({ field: 'gender', msg: 'gender must be male, female, other, or null' });
+      errors.push({
+        field: "gender",
+        msg: "gender must be male, female, other, or null",
+      });
     } else {
       update.gender = req.body.gender;
     }
   }
 
   if (errors.length > 0) {
-    return res.status(400).json({ success: false, message: 'Validation failed', errors });
+    return res
+      .status(400)
+      .json({ success: false, message: "Validation failed", errors });
   }
 
   if (Object.keys(update).length === 0) {
-    return res.status(400).json({ success: false, message: 'No updatable fields supplied' });
+    return res
+      .status(400)
+      .json({ success: false, message: "No updatable fields supplied" });
   }
 
   const user = await User.findByIdAndUpdate(req.userId, update, { new: true });
-  if (!user) return res.status(404).json({ success: false, message: 'User not found' });
-  return res.json({ success: true, data: user });
+  if (!user)
+    return res.status(404).json({ success: false, message: "User not found" });
+  return res.json({ success: true, data: attachAvatarUrl(user.toObject()) });
 };
 
 /**
@@ -225,18 +265,23 @@ exports.updateProfile = async (req, res) => {
  */
 exports.updateAvatar = async (req, res) => {
   if (!req.file) {
-    return res.status(400).json({ success: false, message: 'No file uploaded' });
+    return res
+      .status(400)
+      .json({ success: false, message: "No file uploaded" });
   }
   if (!BUCKET) {
-    return res.status(500).json({ success: false, message: 'R2 bucket not configured' });
+    return res
+      .status(500)
+      .json({ success: false, message: "R2 bucket not configured" });
   }
 
   const user = await User.findById(req.userId);
-  if (!user) return res.status(404).json({ success: false, message: 'User not found' });
+  if (!user)
+    return res.status(404).json({ success: false, message: "User not found" });
 
-  const ext = extFromFilename(req.file.originalname) || 'jpg';
+  const ext = extFromFilename(req.file.originalname) || "jpg";
   const mime =
-    req.file.mimetype && req.file.mimetype !== 'application/octet-stream'
+    req.file.mimetype && req.file.mimetype !== "application/octet-stream"
       ? req.file.mimetype
       : mimeFromImageExt(ext);
   const avatarKey = `avatars/${req.userId}.${ext}`;
@@ -244,9 +289,14 @@ exports.updateAvatar = async (req, res) => {
   // Xóa avatar cũ nếu có.
   if (user.avatarKey) {
     try {
-      await s3.send(new DeleteObjectCommand({ Bucket: BUCKET, Key: user.avatarKey }));
+      await s3.send(
+        new DeleteObjectCommand({ Bucket: BUCKET, Key: user.avatarKey }),
+      );
     } catch (err) {
-      console.warn('[user.updateAvatar] delete old avatar failed:', err.message);
+      console.warn(
+        "[user.updateAvatar] delete old avatar failed:",
+        err.message,
+      );
     }
   }
 
@@ -257,7 +307,7 @@ exports.updateAvatar = async (req, res) => {
       Body: req.file.buffer,
       ContentType: mime,
       ContentLength: req.file.size,
-    })
+    }),
   );
 
   user.avatarKey = avatarKey;
@@ -272,20 +322,23 @@ exports.updateAvatar = async (req, res) => {
  */
 exports.deleteAvatar = async (req, res) => {
   const user = await User.findById(req.userId);
-  if (!user) return res.status(404).json({ success: false, message: 'User not found' });
+  if (!user)
+    return res.status(404).json({ success: false, message: "User not found" });
 
   if (!user.avatarKey) {
-    return res.status(404).json({ success: false, message: 'No avatar to delete' });
+    return res
+      .status(404)
+      .json({ success: false, message: "No avatar to delete" });
   }
 
   const oldKey = user.avatarKey;
-  user.avatarKey = '';
+  user.avatarKey = "";
   await user.save();
 
   try {
     await s3.send(new DeleteObjectCommand({ Bucket: BUCKET, Key: oldKey }));
   } catch (err) {
-    console.warn('[user.deleteAvatar] R2 delete failed:', err.message);
+    console.warn("[user.deleteAvatar] R2 delete failed:", err.message);
   }
 
   return res.json({ success: true, data: user });
@@ -299,27 +352,31 @@ exports.remove = async (req, res) => {
   const { id } = req.params;
 
   if (id === req.userId) {
-    return res.status(403).json({ success: false, message: 'Cannot delete your own account' });
+    return res
+      .status(403)
+      .json({ success: false, message: "Cannot delete your own account" });
   }
 
   const target = await User.findById(id);
   if (!target) {
-    return res.status(404).json({ success: false, message: 'User not found' });
+    return res.status(404).json({ success: false, message: "User not found" });
   }
 
   // Xóa avatar trên R2 nếu có.
   if (target.avatarKey) {
     try {
-      await s3.send(new DeleteObjectCommand({ Bucket: BUCKET, Key: target.avatarKey }));
+      await s3.send(
+        new DeleteObjectCommand({ Bucket: BUCKET, Key: target.avatarKey }),
+      );
     } catch (err) {
-      console.warn('[user.remove] delete avatar failed:', err.message);
+      console.warn("[user.remove] delete avatar failed:", err.message);
     }
   }
 
   // Xóa luôn các document liên quan để tránh orphan data.
-  const Track = require('../models/Track');
-  const Group = require('../models/Group');
-  const Album = require('../models/Album');
+  const Track = require("../models/Track");
+  const Group = require("../models/Group");
+  const Album = require("../models/Album");
 
   await Promise.all([
     Track.deleteMany({ owner: id }),
@@ -328,8 +385,14 @@ exports.remove = async (req, res) => {
   ]);
 
   // Xóa user khỏi groups/albums mà họ đang tham gia (thay vì xóa hẳn group/album).
-  await Group.updateMany({ 'members.user': id }, { $pull: { members: { user: id } } });
-  await Album.updateMany({ 'members.user': id }, { $pull: { members: { user: id } } });
+  await Group.updateMany(
+    { "members.user": id },
+    { $pull: { members: { user: id } } },
+  );
+  await Album.updateMany(
+    { "members.user": id },
+    { $pull: { members: { user: id } } },
+  );
 
   await User.deleteOne({ _id: id });
 

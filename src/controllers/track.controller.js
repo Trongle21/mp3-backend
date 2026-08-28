@@ -118,6 +118,16 @@ exports.upload = async (req, res) => {
     try {
       const album = await Album.findOne({ _id: req.body.albumId });
       if (album) {
+        // Nếu track đã thuộc album khác → gỡ khỏi album cũ
+        if (track.album && track.album.toString() !== album._id.toString()) {
+          const oldAlbum = await Album.findById(track.album);
+          if (oldAlbum) {
+            oldAlbum.tracks = oldAlbum.tracks.filter((t) => t.track.toString() !== track._id.toString());
+            oldAlbum.tracks.forEach((t, i) => { t.position = i; });
+            await oldAlbum.save();
+          }
+        }
+
         const exists = album.tracks.some((t) => t.track.toString() === track._id.toString());
         if (!exists) {
           const nextPos =

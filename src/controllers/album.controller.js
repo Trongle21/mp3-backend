@@ -7,6 +7,7 @@ const Track = require('../models/Track');
 const {
   attachThumbnailUrl,
   attachThumbnailUrls,
+  attachCoverUrl,
 } = require('../utils/mediaUrl');
 
 function ensureObjectId(id) {
@@ -155,6 +156,7 @@ exports.getOne = async (req, res) => {
     for (const slot of out.tracks) {
       if (slot.track && typeof slot.track === 'object') {
         slot.track.durationSec = slot.track.durationSec || 0;
+        attachCoverUrl(slot.track);
       }
     }
   }
@@ -244,15 +246,29 @@ exports.addTrack = async (req, res) => {
     return res.status(404).json({ success: false, message: 'Album not found' });
   }
 
-  const track = await Track.findOne({ _id: trackId }).select('_id').lean();
+  const track = await Track.findOne({ _id: trackId }).select('_id album').lean();
   if (!track) {
     return res.status(404).json({ success: false, message: 'Track not found' });
   }
 
+  // Nếu track đã thuộc album khác → gỡ khỏi album cũ
+  if (track.album && track.album.toString() !== album._id.toString()) {
+    const oldAlbum = await Album.findById(track.album);
+    if (oldAlbum) {
+      oldAlbum.tracks = oldAlbum.tracks.filter((t) => t.track.toString() !== trackId);
+      oldAlbum.tracks.forEach((t, i) => { t.position = i; });
+      await oldAlbum.save();
+    }
+  }
+
+  // Kiểm tra đã có trong album hiện tại chưa
   const exists = album.tracks.some((t) => t.track.toString() === trackId);
   if (exists) {
-    return res.json({ success: true, data: album, message: 'Track already in album' });
+    return res.json({ success: true, data: attachThumbnailUrl(album.toObject()), message: 'Track already in this album' });
   }
+
+  // Cập nhật album field trên Track
+  await Track.updateOne({ _id: trackId }, { $set: { album: album._id } });
 
   const nextPosition =
     album.tracks.length > 0
@@ -286,6 +302,9 @@ exports.removeTrack = async (req, res) => {
 
   album.tracks.forEach((t, i) => { t.position = i; });
   await album.save();
+
+  // Xóa album field trên Track (track không còn thuộc album nào)
+  await Track.updateOne({ _id: req.params.trackId }, { $set: { album: null } });
 
   return res.json({ success: true, data: attachThumbnailUrl(album.toObject()) });
 };
