@@ -1,11 +1,15 @@
 const connectDB = require('../src/config/db');
 
-let dbReady;
-async function ensureDB() {
-  if (!dbReady) {
-    dbReady = connectDB();
+let dbPromise;
+
+function ensureDB() {
+  if (!dbPromise) {
+    dbPromise = connectDB().catch((err) => {
+      dbPromise = null;
+      throw err;
+    });
   }
-  return dbReady;
+  return dbPromise;
 }
 
 const app = require('../src/app');
@@ -15,7 +19,11 @@ app.use(async (req, res, next) => {
     await ensureDB();
     next();
   } catch (err) {
-    next(err);
+    console.error('[mongo] connect failed:', err);
+    res.status(500).json({
+      success: false,
+      message: `Database connection failed: ${err.message}`,
+    });
   }
 });
 
