@@ -1,3 +1,4 @@
+const mongoose = require('mongoose');
 const connectDB = require('../src/config/db');
 
 let dbPromise;
@@ -19,10 +20,15 @@ app.use(async (req, res, next) => {
     await ensureDB();
     next();
   } catch (err) {
-    console.error('[mongo] connect failed:', err);
+    const readyState = mongoose.connection.readyState; // 0=disconnected, 1=connected, 2=connecting, 3=disconnecting
+    const uriPrefix = (process.env.MONGODB_URI || '').slice(0, 20);
+    console.error('[mongo] connect failed:', err.message);
+    console.error('[mongo] readyState:', readyState);
+    console.error('[mongo] MONGODB_URI prefix:', uriPrefix);
     res.status(500).json({
       success: false,
       message: `Database connection failed: ${err.message}`,
+      debug: { readyState, uriPrefix },
     });
   }
 });
