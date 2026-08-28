@@ -19,6 +19,11 @@ const userRoutes = require("./routes/user.routes");
 
 const app = express();
 
+// Vercel (và mọi reverse proxy) set X-Forwarded-For. Cần bật trust proxy
+// để express-rate-limit đọc IP thật của client, không thì lỗi
+// ERR_ERL_UNEXPECTED_X_FORWARDED_FOR.
+app.set('trust proxy', 1);
+
 // CORS: chỉ cho phép origin từ env. Cho phép credentials nếu cần.
 const frontendUrl = process.env.FRONTEND_URL || "http://localhost:3000";
 // app.use(
