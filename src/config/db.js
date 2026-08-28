@@ -6,8 +6,12 @@ async function connectDB() {
 
   mongoose.set("strictQuery", true);
 
+  // Trên Vercel serverless, DNS + TLS + server selection có thể chậm hơn local.
+  // Tăng timeout để tránh false-negative.
   await mongoose.connect(uri, {
-    serverSelectionTimeoutMS: 10000,
+    serverSelectionTimeoutMS: 30000,
+    socketTimeoutMS: 45000,
+    connectTimeoutMS: 30000,
   });
 
   console.log("MongoDB connected");
