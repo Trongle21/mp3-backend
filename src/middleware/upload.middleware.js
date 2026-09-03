@@ -59,7 +59,7 @@ const ALLOWED_IMAGE_MIME = new Set([
 ]);
 
 const ALLOWED_IMAGE_EXT = [".jpg", ".jpeg", ".png", ".webp", ".gif"];
-const MAX_IMAGE_SIZE = 10 * 1024 * 1024; // 10MB
+const MAX_IMAGE_SIZE = 100 * 1024 * 1024; // 100MB
 
 function imageFileFilter(_req, file, cb) {
   const lower = file.originalname.toLowerCase();
