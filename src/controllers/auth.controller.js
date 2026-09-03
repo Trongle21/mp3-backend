@@ -2,8 +2,8 @@ const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const User = require("../models/User");
 
-const ACCESS_EXPIRES = process.env.JWT_ACCESS_EXPIRES || "7d";
-const REFRESH_EXPIRES = process.env.JWT_REFRESH_EXPIRES || "70d";
+const ACCESS_EXPIRES = process.env.JWT_ACCESS_EXPIRES;
+const REFRESH_EXPIRES = process.env.JWT_REFRESH_EXPIRES;
 
 function signAccessToken(userId) {
   return jwt.sign({ sub: userId.toString() }, process.env.JWT_ACCESS_SECRET, {

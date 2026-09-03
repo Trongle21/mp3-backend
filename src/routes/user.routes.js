@@ -1,44 +1,47 @@
-const { Router } = require('express');
-const { body, param } = require('express-validator');
-const ctrl = require('../controllers/user.controller');
-const asyncHandler = require('../utils/asyncHandler');
-const auth = require('../middleware/auth.middleware');
-const requireMaster = require('../middleware/master.middleware');
-const upload = require('../middleware/upload.middleware');
-const { runValidation } = require('../middleware/error.middleware');
+const { Router } = require("express");
+const { body, param } = require("express-validator");
+const ctrl = require("../controllers/user.controller");
+const asyncHandler = require("../utils/asyncHandler");
+const auth = require("../middleware/auth.middleware");
+const requireMaster = require("../middleware/master.middleware");
+const upload = require("../middleware/upload.middleware");
+const { runValidation } = require("../middleware/error.middleware");
 
 const router = Router();
 
 router.use(auth);
 
+// ✅ Own profile — đặt trước /:id để Express match đúng
+router.get("/me", asyncHandler(ctrl.getProfile));
+router.patch("/me", asyncHandler(ctrl.updateProfile));
+router.post(
+  "/me/avatar",
+  upload.uploadImage.single("file"),
+  asyncHandler(ctrl.updateAvatar),
+);
+router.delete("/me/avatar", asyncHandler(ctrl.deleteAvatar));
 // 🔒 Master only
-router.get('/', requireMaster, asyncHandler(ctrl.list));
+router.get("/", requireMaster, asyncHandler(ctrl.list));
 router.patch(
-  '/:id/role',
+  "/:id/role",
   requireMaster,
-  [param('id').isMongoId(), body('isAdmin').optional()],
+  [param("id").isMongoId(), body("isAdmin").optional()],
   runValidation,
-  asyncHandler(ctrl.updateRole)
+  asyncHandler(ctrl.updateRole),
 );
 router.patch(
-  '/:id',
+  "/:id",
   requireMaster,
-  [param('id').isMongoId()],
+  [param("id").isMongoId()],
   runValidation,
-  asyncHandler(ctrl.updateUser)
+  asyncHandler(ctrl.updateUser),
 );
 router.delete(
-  '/:id',
+  "/:id",
   requireMaster,
-  [param('id').isMongoId()],
+  [param("id").isMongoId()],
   runValidation,
-  asyncHandler(ctrl.remove)
+  asyncHandler(ctrl.remove),
 );
-
-// ✅ Own profile
-router.get('/me', asyncHandler(ctrl.getProfile));
-router.patch('/me', asyncHandler(ctrl.updateProfile));
-router.post('/me/avatar', upload.uploadImage.single('file'), asyncHandler(ctrl.updateAvatar));
-router.delete('/me/avatar', asyncHandler(ctrl.deleteAvatar));
 
 module.exports = router;
