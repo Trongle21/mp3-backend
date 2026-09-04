@@ -169,14 +169,38 @@ Sau khi các request này chạy, các request sau dùng biến `{{trackId}}`, `
 | 416 thay vì 200        | Server không clamp range out of bounds            | Check stream controller                           |
 | Cross-user 404 fail    | Controller không filter theo `owner`              | Check track controller                            |
 
+---
+
+# Chat & Messaging Test Suite
+
+File: `postman/Chat-Messaging.postman_collection.json` (50 test cases, 7 folders)
+
+## Thứ tự chạy (Postman Collection Runner)
+
+```
+1. Setup Users (User A, User B, User C)
+   ↓
+2. Contacts (Send request, Duplicate 400, Accept, Decline, List friends)
+   ↓
+3. Direct Conversations (Create 1-1, Idempotent 200, Self-chat 400, Non-member 403)
+   ↓
+4. Group Conversations (Create group, Rename, Add member, Presigned upload URL)
+   ↓
+5. Messages & Chat Flow (Send text, Reply, Image mediaUrl, Cursor pagination, Edit, React/Toggle emoji, Mark read, Soft delete)
+   ↓
+6. Group Membership (Kick member 403/200, Kicked access 403, Leave group 200)
+   ↓
+7. Presence & Heartbeat (Heartbeat 200, Batch query 200)
+```
+
 ## File structure
 
 ```
 d:\Another\Mp3\Backend\
 ├── postman/
-│   ├── Music-App-Backend.postman_collection.json   ← Import vào Postman
-│   └── Music-App-Local.postman_environment.json    ← Import vào Postman
-├── POSTMAN-README.md                                ← File này
-├── sample.mp3                                       ← File test (bạn tự thêm)
+│   ├── Music-App-Backend.postman_collection.json   ← Test suite nghe nhạc & albums
+│   ├── Chat-Messaging.postman_collection.json      ← Test suite chat, tin nhắn, contacts, presence
+│   └── Music-App-Local.postman_environment.json    ← Environment dùng chung cho cả 2 bộ test
+├── POSTMAN-README.md
 └── ...
 ```

@@ -19,6 +19,8 @@ const groupRoutes = require("./routes/group.routes");
 const albumRoutes = require("./routes/album.routes");
 const playerRoutes = require("./routes/player.routes");
 const userRoutes = require("./routes/user.routes");
+const conversationRoutes = require("./routes/conversation.routes");
+const sseRoutes = require("./routes/sse.routes");
 
 const app = express();
 
@@ -109,6 +111,8 @@ app.use("/api/groups", groupRoutes);
 app.use("/api/albums", albumRoutes);
 app.use("/api/player", playerRoutes);
 app.use("/api/users", userRoutes);
+app.use("/api/conversations", conversationRoutes);
+app.use("/api/sse", sseRoutes);
 
 // 404 + error handler đặt CUỐI cùng.
 app.use(notFoundMiddleware);

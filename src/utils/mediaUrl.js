@@ -67,12 +67,50 @@ function attachThumbnailUrls(groups) {
   return groups;
 }
 
+function conversationAvatarUrl(convOrKey) {
+  const key = typeof convOrKey === 'string' ? convOrKey : convOrKey?.avatarKey;
+  return buildPublicUrl(key);
+}
+
+function attachConversationAvatarUrl(conv) {
+  if (!conv) return conv;
+  conv.avatarUrl = conversationAvatarUrl(conv);
+  return conv;
+}
+
+function attachConversationAvatarUrls(convs) {
+  if (!Array.isArray(convs)) return convs;
+  for (const c of convs) attachConversationAvatarUrl(c);
+  return convs;
+}
+
+function attachMessageMediaUrl(msg) {
+  if (!msg) return msg;
+  if (['image', 'gif', 'audio'].includes(msg.type) && msg.content) {
+    msg.mediaUrl = buildPublicUrl(msg.content);
+  } else {
+    msg.mediaUrl = null;
+  }
+  return msg;
+}
+
+function attachMessagesMediaUrls(msgs) {
+  if (!Array.isArray(msgs)) return msgs;
+  for (const m of msgs) attachMessageMediaUrl(m);
+  return msgs;
+}
+
 module.exports = {
   buildPublicUrl,
   trackCoverUrl,
   groupThumbnailUrl,
+  conversationAvatarUrl,
   attachCoverUrl,
   attachThumbnailUrl,
+  attachConversationAvatarUrl,
   attachCoverUrls,
   attachThumbnailUrls,
+  attachConversationAvatarUrls,
+  attachMessageMediaUrl,
+  attachMessagesMediaUrls,
 };

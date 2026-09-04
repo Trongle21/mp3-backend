@@ -7,10 +7,17 @@ const User = require('../models/User');
  */
 module.exports = async function authMiddleware(req, res, next) {
   try {
+    let token = null;
     const header = req.headers.authorization || '';
-    const [scheme, token] = header.split(' ');
-    if (scheme !== 'Bearer' || !token) {
-      return res.status(401).json({ success: false, message: 'Missing or invalid Authorization header' });
+    const [scheme, bearerToken] = header.split(' ');
+    if (scheme === 'Bearer' && bearerToken) {
+      token = bearerToken;
+    } else if (req.query && req.query.token) {
+      token = req.query.token;
+    }
+
+    if (!token) {
+      return res.status(401).json({ success: false, message: 'Missing or invalid Authorization header or token query parameter' });
     }
 
     const secret = process.env.JWT_ACCESS_SECRET;

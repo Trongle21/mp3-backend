@@ -1,0 +1,2235 @@
+{
+  "info": {
+    "_postman_id": "chat-messaging-test-suite-v1",
+    "name": "Chat & Messaging — Full Test Suite",
+    "description": "Test suite toàn diện cho hệ thống Chat & Messaging (Conversations, Messages, Contacts, Presence, SSE).\n\n**Chuẩn bị:**\n1. Chạy server: `npm run dev`\n2. Chọn environment: `Music App — Local`\n3. Chạy toàn bộ collection qua Postman Runner theo thứ tự các thư mục.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:5000/api",
+      "type": "string"
+    },
+    {
+      "key": "testEmailA",
+      "value": "alice+{{$randomInt}}@example.com",
+      "type": "string"
+    },
+    {
+      "key": "testEmailB",
+      "value": "bob+{{$randomInt}}@example.com",
+      "type": "string"
+    },
+    {
+      "key": "testEmailC",
+      "value": "charlie+{{$randomInt}}@example.com",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "1. Setup Users (A, B, C)",
+      "item": [
+        {
+          "name": "1.1 Register User A (Alice)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/auth/register",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "register"
+              ]
+            },
+            "description": "Đăng ký User A (Alice) và tự động lưu accessToken, userId.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{testEmailA}}\",\n  \"password\": \"secret123\",\n  \"name\": \"Alice\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 201', () => pm.response.to.have.status(201));",
+                  "const res = pm.response.json();",
+                  "pm.test('Has accessToken + userId', () => {",
+                  "  pm.expect(res.data.accessToken).to.be.a('string');",
+                  "  pm.expect(res.data.user._id).to.be.a('string');",
+                  "});",
+                  "pm.environment.set('accessToken', res.data.accessToken);",
+                  "pm.environment.set('userId', res.data.user._id);",
+                  "console.log('User A created:', res.data.user._id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "1.2 Register User B (Bob)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/auth/register",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "register"
+              ]
+            },
+            "description": "Đăng ký User B (Bob) và tự động lưu accessTokenB, userIdB.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{testEmailB}}\",\n  \"password\": \"secret123\",\n  \"name\": \"Bob\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 201', () => pm.response.to.have.status(201));",
+                  "const res = pm.response.json();",
+                  "pm.test('Has accessTokenB + userIdB', () => {",
+                  "  pm.expect(res.data.accessToken).to.be.a('string');",
+                  "  pm.expect(res.data.user._id).to.be.a('string');",
+                  "});",
+                  "pm.environment.set('accessTokenB', res.data.accessToken);",
+                  "pm.environment.set('userIdB', res.data.user._id);",
+                  "console.log('User B created:', res.data.user._id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "1.3 Register User C (Charlie)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/auth/register",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "register"
+              ]
+            },
+            "description": "Đăng ký User C (Charlie) để dùng cho test nhóm 3 người và kick/leave.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{testEmailC}}\",\n  \"password\": \"secret123\",\n  \"name\": \"Charlie\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 201', () => pm.response.to.have.status(201));",
+                  "const res = pm.response.json();",
+                  "pm.test('Has accessTokenC + userIdC', () => {",
+                  "  pm.expect(res.data.accessToken).to.be.a('string');",
+                  "  pm.expect(res.data.user._id).to.be.a('string');",
+                  "});",
+                  "pm.environment.set('accessTokenC', res.data.accessToken);",
+                  "pm.environment.set('userIdC', res.data.user._id);",
+                  "console.log('User C created:', res.data.user._id);"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "2. Contacts (Bạn bè & Kết nối)",
+      "item": [
+        {
+          "name": "2.1 Send request to self -> 400",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/users/contacts",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "users",
+                "contacts"
+              ]
+            },
+            "description": "Không thể tự gửi lời mời kết bạn cho chính mình.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"recipientId\": \"{{userId}}\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 400 - Cannot add self', () => pm.response.to.have.status(400));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "2.2 User A sends friend request to User B -> 201",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/users/contacts",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "users",
+                "contacts"
+              ]
+            },
+            "description": "User A gửi lời mời kết bạn tới User B, trạng thái pending.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"recipientId\": \"{{userIdB}}\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 201 Created', () => pm.response.to.have.status(201));",
+                  "const res = pm.response.json();",
+                  "pm.test('Status is pending', () => pm.expect(res.data.status).to.eql('pending'));",
+                  "pm.environment.set('contactIdAB', res.data._id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "2.3 Duplicate request -> 400",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/users/contacts",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "users",
+                "contacts"
+              ]
+            },
+            "description": "Gửi lại lời mời khi đang chờ duyệt sẽ bị báo lỗi 400.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"recipientId\": \"{{userIdB}}\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 400 - Request already pending', () => pm.response.to.have.status(400));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "2.4 User B lists pending requests -> 200",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessTokenB}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/users/contacts?status=pending",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "users",
+                "contacts"
+              ],
+              "query": [
+                {
+                  "key": "status",
+                  "value": "pending"
+                }
+              ]
+            },
+            "description": "User B kiểm tra danh sách lời mời đang chờ, thấy lời mời từ Alice."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const res = pm.response.json();",
+                  "pm.test('Has incoming request from User A', () => {",
+                  "  pm.expect(res.data.incoming).to.be.an('array');",
+                  "  const found = res.data.incoming.find(r => r._id === pm.environment.get('contactIdAB'));",
+                  "  pm.expect(found).to.not.be.undefined;",
+                  "  pm.expect(found.requester.name).to.eql('Alice');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "2.5 User A tries to accept own request -> 403",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/users/contacts/{{contactIdAB}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "users",
+                "contacts",
+                "{{contactIdAB}}"
+              ]
+            },
+            "description": "Chỉ người nhận mới có quyền chấp nhận lời mời.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"action\": \"accept\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 403 - Only recipient can accept', () => pm.response.to.have.status(403));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "2.6 User B accepts friend request -> 200",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessTokenB}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/users/contacts/{{contactIdAB}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "users",
+                "contacts",
+                "{{contactIdAB}}"
+              ]
+            },
+            "description": "User B chấp nhận lời mời kết bạn.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"action\": \"accept\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const res = pm.response.json();",
+                  "pm.test('Status is now accepted', () => pm.expect(res.data.status).to.eql('accepted'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "2.7 User A views accepted friends -> 200",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/users/contacts",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "users",
+                "contacts"
+              ]
+            },
+            "description": "User A xem danh bạ, thấy Bob trong danh sách bạn bè."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const res = pm.response.json();",
+                  "pm.test('List contains User B', () => {",
+                  "  pm.expect(res.data).to.be.an('array');",
+                  "  const b = res.data.find(f => f.user._id === pm.environment.get('userIdB'));",
+                  "  pm.expect(b).to.not.be.undefined;",
+                  "  pm.expect(b.user.name).to.eql('Bob');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "2.8 User A sends friend request to User C -> 201",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/users/contacts",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "users",
+                "contacts"
+              ]
+            },
+            "description": "User A gửi kết bạn tới User C để test từ chối.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"recipientId\": \"{{userIdC}}\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 201', () => pm.response.to.have.status(201));",
+                  "pm.environment.set('contactIdAC', pm.response.json().data._id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "2.9 User C declines friend request -> 200",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessTokenC}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/users/contacts/{{contactIdAC}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "users",
+                "contacts",
+                "{{contactIdAC}}"
+              ]
+            },
+            "description": "User C từ chối lời mời kết bạn.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"action\": \"decline\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "3. Direct Conversations (1-1)",
+      "item": [
+        {
+          "name": "3.1 Create 1-1 with self -> 400",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/conversations",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "conversations"
+              ]
+            },
+            "description": "Không thể chat 1-1 với chính mình.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"type\": \"direct\",\n  \"recipientId\": \"{{userId}}\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 400 - Cannot direct chat with self', () => pm.response.to.have.status(400));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "3.2 User A creates direct chat with User B -> 201",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/conversations",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "conversations"
+              ]
+            },
+            "description": "Tạo cuộc trò chuyện 1-1 giữa User A và User B.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"type\": \"direct\",\n  \"recipientId\": \"{{userIdB}}\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 201 Created', () => pm.response.to.have.status(201));",
+                  "const res = pm.response.json();",
+                  "pm.test('Type is direct', () => pm.expect(res.data.type).to.eql('direct'));",
+                  "pm.test('Has 2 members', () => pm.expect(res.data.members.length).to.eql(2));",
+                  "pm.environment.set('directConvId', res.data._id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "3.3 User A calls again -> 200 Idempotent",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/conversations",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "conversations"
+              ]
+            },
+            "description": "Gọi tạo lại direct chat giữa 2 người sẽ trả về cuộc trò chuyện đã có, không tạo trùng.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"type\": \"direct\",\n  \"recipientId\": \"{{userIdB}}\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200 OK', () => pm.response.to.have.status(200));",
+                  "const res = pm.response.json();",
+                  "pm.test('Returns same directConvId', () => pm.expect(res.data._id).to.eql(pm.environment.get('directConvId')));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "3.4 User B calls reverse -> 200 Idempotent",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessTokenB}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/conversations",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "conversations"
+              ]
+            },
+            "description": "User B gọi ngược lại cũng nhận về đúng directConvId.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"type\": \"direct\",\n  \"recipientId\": \"{{userId}}\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200 OK', () => pm.response.to.have.status(200));",
+                  "pm.test('Returns same directConvId', () => pm.expect(pm.response.json().data._id).to.eql(pm.environment.get('directConvId')));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "3.5 User A lists conversations -> 200",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/conversations?page=1&limit=20",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "conversations"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "20"
+                }
+              ]
+            },
+            "description": "User A xem danh sách cuộc trò chuyện, thấy cuộc trò chuyện 1-1."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const res = pm.response.json();",
+                  "pm.test('List contains directConvId', () => {",
+                  "  pm.expect(res.data).to.be.an('array');",
+                  "  const found = res.data.find(c => c._id === pm.environment.get('directConvId'));",
+                  "  pm.expect(found).to.not.be.undefined;",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "3.6 User A gets conversation detail -> 200",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/conversations/{{directConvId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "conversations",
+                "{{directConvId}}"
+              ]
+            },
+            "description": "User A xem chi tiết cuộc trò chuyện kèm danh sách thành viên."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const res = pm.response.json();",
+                  "pm.test('Has members populated', () => {",
+                  "  pm.expect(res.data.members).to.be.an('array');",
+                  "  pm.expect(res.data.members.length).to.eql(2);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "3.7 User C (non-member) tries to access -> 403",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessTokenC}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/conversations/{{directConvId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "conversations",
+                "{{directConvId}}"
+              ]
+            },
+            "description": "Người ngoài cuộc trò chuyện không thể xem chi tiết."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 403 - Forbidden', () => pm.response.to.have.status(403));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "4. Group Conversations (Nhóm chat)",
+      "item": [
+        {
+          "name": "4.1 Create group without name -> 400",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/conversations",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "conversations"
+              ]
+            },
+            "description": "Tạo nhóm bắt buộc phải có tên.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"type\": \"group\",\n  \"memberIds\": [\n    \"{{userIdB}}\"\n  ]\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 400 - name is required', () => pm.response.to.have.status(400));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "4.2 User A creates group chat with User B -> 201",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/conversations",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "conversations"
+              ]
+            },
+            "description": "User A tạo nhóm mới với User B, User A là owner.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"type\": \"group\",\n  \"name\": \"Hội Yêu Âm Nhạc\",\n  \"memberIds\": [\n    \"{{userIdB}}\"\n  ]\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 201 Created', () => pm.response.to.have.status(201));",
+                  "const res = pm.response.json();",
+                  "pm.test('Type is group', () => pm.expect(res.data.type).to.eql('group'));",
+                  "pm.test('Owner is User A', () => pm.expect(res.data.owner._id).to.eql(pm.environment.get('userId')));",
+                  "pm.test('Members include User A and User B', () => pm.expect(res.data.members.length).to.eql(2));",
+                  "pm.environment.set('groupConvId', res.data._id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "4.3 User B (non-owner) renames group -> 403",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessTokenB}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/conversations/{{groupConvId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "conversations",
+                "{{groupConvId}}"
+              ]
+            },
+            "description": "Thành viên thường không có quyền đổi tên nhóm.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Đổi Tên Bởi Bob\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 403 - Only owner can update', () => pm.response.to.have.status(403));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "4.4 User A (owner) renames group -> 200",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/conversations/{{groupConvId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "conversations",
+                "{{groupConvId}}"
+              ]
+            },
+            "description": "Owner đổi tên nhóm thành công.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"CLB Âm Nhạc & Chia Sẻ\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Name is updated', () => pm.expect(pm.response.json().data.name).to.eql('CLB Âm Nhạc & Chia Sẻ'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "4.5 User A adds User C to group -> 200",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/conversations/{{groupConvId}}/members",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "conversations",
+                "{{groupConvId}}",
+                "members"
+              ]
+            },
+            "description": "Owner thêm thành viên Charlie vào nhóm.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userId\": \"{{userIdC}}\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const res = pm.response.json();",
+                  "pm.test('Members count is 3', () => pm.expect(res.data.members.length).to.eql(3));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "4.6 User A adds User C again -> 400 Duplicate",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/conversations/{{groupConvId}}/members",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "conversations",
+                "{{groupConvId}}",
+                "members"
+              ]
+            },
+            "description": "Không thể thêm thành viên đã có trong nhóm.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userId\": \"{{userIdC}}\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 400 - Already a member', () => pm.response.to.have.status(400));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "4.7 Get chat media upload URL -> 200",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/conversations/{{groupConvId}}/upload-url",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "conversations",
+                "{{groupConvId}}",
+                "upload-url"
+              ]
+            },
+            "description": "Lấy presigned URL để upload file ảnh/GIF/audio cho tin nhắn.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"filename\": \"sample-image.jpg\",\n  \"mimeType\": \"image/jpeg\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const res = pm.response.json();",
+                  "pm.test('Has uploadUrl and fileKey', () => {",
+                  "  pm.expect(res.data.uploadUrl).to.be.a('string');",
+                  "  pm.expect(res.data.fileKey).to.be.a('string');",
+                  "});",
+                  "pm.environment.set('chatMediaKey', res.data.fileKey);"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "5. Messages & Chat Flow",
+      "item": [
+        {
+          "name": "5.1 Send message with empty content -> 400",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/conversations/{{directConvId}}/messages",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "conversations",
+                "{{directConvId}}",
+                "messages"
+              ]
+            },
+            "description": "Không thể gửi tin nhắn rỗng.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"content\": \"   \"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 400 - content cannot be empty', () => pm.response.to.have.status(400));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "5.2 User C (non-member) sends to direct chat -> 403",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessTokenC}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/conversations/{{directConvId}}/messages",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "conversations",
+                "{{directConvId}}",
+                "messages"
+              ]
+            },
+            "description": "Người ngoài không thể gửi tin nhắn vào cuộc trò chuyện.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"content\": \"Tin nhắn xâm nhập\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 403 - Forbidden', () => pm.response.to.have.status(403));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "5.3 User A sends text message -> 201",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/conversations/{{directConvId}}/messages",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "conversations",
+                "{{directConvId}}",
+                "messages"
+              ]
+            },
+            "description": "User A gửi tin nhắn văn bản đầu tiên trong direct chat.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"type\": \"text\",\n  \"content\": \"Chào Bob, bài hát mới này hay lắm!\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 201 Created', () => pm.response.to.have.status(201));",
+                  "const res = pm.response.json();",
+                  "pm.test('Content matches', () => pm.expect(res.data.content).to.eql('Chào Bob, bài hát mới này hay lắm!'));",
+                  "pm.test('Sender is Alice', () => pm.expect(res.data.sender._id).to.eql(pm.environment.get('userId')));",
+                  "pm.environment.set('msgId1', res.data._id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "5.4 User B replies to msgId1 -> 201",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessTokenB}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/conversations/{{directConvId}}/messages",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "conversations",
+                "{{directConvId}}",
+                "messages"
+              ]
+            },
+            "description": "User B trả lời (reply) tin nhắn của User A.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"type\": \"text\",\n  \"content\": \"Mình cũng thấy vậy!\",\n  \"replyTo\": \"{{msgId1}}\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 201 Created', () => pm.response.to.have.status(201));",
+                  "const res = pm.response.json();",
+                  "pm.test('replyTo is populated', () => {",
+                  "  pm.expect(res.data.replyTo).to.be.an('object');",
+                  "  pm.expect(res.data.replyTo._id).to.eql(pm.environment.get('msgId1'));",
+                  "});",
+                  "pm.environment.set('msgId2', res.data._id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "5.5 User A sends image message -> 201",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/conversations/{{directConvId}}/messages",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "conversations",
+                "{{directConvId}}",
+                "messages"
+              ]
+            },
+            "description": "Gửi tin nhắn hình ảnh với R2 key, server tự động gắn mediaUrl.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"type\": \"image\",\n  \"content\": \"chat-media/test/sample.jpg\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 201 Created', () => pm.response.to.have.status(201));",
+                  "const res = pm.response.json();",
+                  "pm.test('Type is image', () => pm.expect(res.data.type).to.eql('image'));",
+                  "pm.test('mediaUrl is generated', () => pm.expect(res.data.mediaUrl).to.be.a('string'));",
+                  "pm.environment.set('msgId3', res.data._id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "5.6 List messages in conversation -> 200",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/conversations/{{directConvId}}/messages?limit=30",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "conversations",
+                "{{directConvId}}",
+                "messages"
+              ],
+              "query": [
+                {
+                  "key": "limit",
+                  "value": "30"
+                }
+              ]
+            },
+            "description": "Lấy lịch sử tin nhắn sắp xếp theo thứ tự thời gian từ cũ đến mới."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const res = pm.response.json();",
+                  "pm.test('Returns 3 messages in chronological order', () => {",
+                  "  pm.expect(res.data.length).to.eql(3);",
+                  "  pm.expect(res.data[0]._id).to.eql(pm.environment.get('msgId1'));",
+                  "  pm.expect(res.data[1]._id).to.eql(pm.environment.get('msgId2'));",
+                  "  pm.expect(res.data[2]._id).to.eql(pm.environment.get('msgId3'));",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "5.7 List messages with pagination (limit=2) -> 200",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/conversations/{{directConvId}}/messages?limit=2",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "conversations",
+                "{{directConvId}}",
+                "messages"
+              ],
+              "query": [
+                {
+                  "key": "limit",
+                  "value": "2"
+                }
+              ]
+            },
+            "description": "Lấy tin nhắn có giới hạn và nhận con trỏ cursor để tải trang tiếp theo."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const res = pm.response.json();",
+                  "pm.test('hasMore is true', () => pm.expect(res.pagination.hasMore).to.eql(true));",
+                  "pm.test('Has nextBefore cursor', () => pm.expect(res.pagination.nextBefore).to.be.a('string'));",
+                  "pm.environment.set('cursorBefore', res.pagination.nextBefore);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "5.8 List messages with cursor before -> 200",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/conversations/{{directConvId}}/messages?limit=2&before={{cursorBefore}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "conversations",
+                "{{directConvId}}",
+                "messages"
+              ],
+              "query": [
+                {
+                  "key": "limit",
+                  "value": "2"
+                },
+                {
+                  "key": "before",
+                  "value": "{{cursorBefore}}"
+                }
+              ]
+            },
+            "description": "Phân trang tin nhắn cũ hơn bằng con trỏ cursor-based."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const res = pm.response.json();",
+                  "pm.test('Contains older message', () => {",
+                  "  pm.expect(res.data.length).to.be.above(0);",
+                  "  pm.expect(res.data[0]._id).to.eql(pm.environment.get('msgId1'));",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "5.9 User B tries to edit User A message -> 403",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessTokenB}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/conversations/{{directConvId}}/messages/{{msgId1}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "conversations",
+                "{{directConvId}}",
+                "messages",
+                "{{msgId1}}"
+              ]
+            },
+            "description": "Chỉ người gửi mới có quyền sửa tin nhắn của mình.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"content\": \"Sửa trộm tin nhắn\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 403 - Only author can edit', () => pm.response.to.have.status(403));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "5.10 User A edits own message -> 200",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/conversations/{{directConvId}}/messages/{{msgId1}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "conversations",
+                "{{directConvId}}",
+                "messages",
+                "{{msgId1}}"
+              ]
+            },
+            "description": "User A sửa nội dung tin nhắn, editedAt được cập nhật.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"content\": \"Chào Bob, bài hát này siêu đỉnh luôn!\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const res = pm.response.json();",
+                  "pm.test('Content is updated', () => pm.expect(res.data.content).to.eql('Chào Bob, bài hát này siêu đỉnh luôn!'));",
+                  "pm.test('editedAt is set', () => pm.expect(res.data.editedAt).to.not.be.null);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "5.11 User B reacts heart to msgId1 -> 200",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessTokenB}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/conversations/{{directConvId}}/messages/{{msgId1}}/react",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "conversations",
+                "{{directConvId}}",
+                "messages",
+                "{{msgId1}}",
+                "react"
+              ]
+            },
+            "description": "User B thả reaction trái tim vào tin nhắn của User A.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"emoji\": \"❤️\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const res = pm.response.json();",
+                  "pm.test('Reaction added', () => {",
+                  "  const r = res.data.reactions.find(x => x.emoji === '❤️');",
+                  "  pm.expect(r).to.not.be.undefined;",
+                  "  pm.expect(r.users.length).to.eql(1);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "5.12 User A also reacts heart -> 200 (2 users)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/conversations/{{directConvId}}/messages/{{msgId1}}/react",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "conversations",
+                "{{directConvId}}",
+                "messages",
+                "{{msgId1}}",
+                "react"
+              ]
+            },
+            "description": "User A cũng thả tim, phản ứng tăng lên 2 người.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"emoji\": \"❤️\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const res = pm.response.json();",
+                  "pm.test('Reaction count is 2', () => {",
+                  "  const r = res.data.reactions.find(x => x.emoji === '❤️');",
+                  "  pm.expect(r.users.length).to.eql(2);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "5.13 User B reacts heart again -> 200 Toggle Off",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessTokenB}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/conversations/{{directConvId}}/messages/{{msgId1}}/react",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "conversations",
+                "{{directConvId}}",
+                "messages",
+                "{{msgId1}}",
+                "react"
+              ]
+            },
+            "description": "Thả lại emoji đã thả sẽ gỡ bỏ reaction (toggle).",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"emoji\": \"❤️\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const res = pm.response.json();",
+                  "pm.test('User B removed from reaction', () => {",
+                  "  const r = res.data.reactions.find(x => x.emoji === '❤️');",
+                  "  pm.expect(r.users.length).to.eql(1);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "5.14 User B marks conversation as read -> 200",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessTokenB}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/conversations/{{directConvId}}/messages/read",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "conversations",
+                "{{directConvId}}",
+                "messages",
+                "read"
+              ]
+            },
+            "description": "Đánh dấu đã đọc toàn bộ tin nhắn trong cuộc trò chuyện."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "5.15 User B tries to delete User A message -> 403",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessTokenB}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/conversations/{{directConvId}}/messages/{{msgId1}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "conversations",
+                "{{directConvId}}",
+                "messages",
+                "{{msgId1}}"
+              ]
+            },
+            "description": "Thành viên thường không thể xóa tin nhắn của người khác."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 403 - Not authorized to delete', () => pm.response.to.have.status(403));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "5.16 User A deletes own message -> 200 Soft Delete",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/conversations/{{directConvId}}/messages/{{msgId1}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "conversations",
+                "{{directConvId}}",
+                "messages",
+                "{{msgId1}}"
+              ]
+            },
+            "description": "Thu hồi tin nhắn thành công (soft delete)."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "5.17 Verify deleted message placeholder -> 200",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/conversations/{{directConvId}}/messages?limit=30",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "conversations",
+                "{{directConvId}}",
+                "messages"
+              ],
+              "query": [
+                {
+                  "key": "limit",
+                  "value": "30"
+                }
+              ]
+            },
+            "description": "Xác nhận tin nhắn bị thu hồi hiển thị placeholder thay thế."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const res = pm.response.json();",
+                  "const m1 = res.data.find(m => m._id === pm.environment.get('msgId1'));",
+                  "pm.test('Content shows recalled placeholder', () => {",
+                  "  pm.expect(m1.content).to.eql('Tin nhắn đã bị thu hồi');",
+                  "  pm.expect(m1.type).to.eql('system');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "6. Group Membership (Kick / Leave)",
+      "item": [
+        {
+          "name": "6.1 User B tries to kick User C -> 403",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessTokenB}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/conversations/{{groupConvId}}/members/{{userIdC}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "conversations",
+                "{{groupConvId}}",
+                "members",
+                "{{userIdC}}"
+              ]
+            },
+            "description": "Thành viên thường không có quyền kick người khác."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 403 - Only owner can kick', () => pm.response.to.have.status(403));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "6.2 User A (owner) kicks User C -> 200",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/conversations/{{groupConvId}}/members/{{userIdC}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "conversations",
+                "{{groupConvId}}",
+                "members",
+                "{{userIdC}}"
+              ]
+            },
+            "description": "Owner kick Charlie ra khỏi nhóm thành công."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const res = pm.response.json();",
+                  "pm.test('User C is removed', () => {",
+                  "  const exists = res.data.members.some(m => m._id === pm.environment.get('userIdC'));",
+                  "  pm.expect(exists).to.eql(false);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "6.3 Kicked User C tries to view group -> 403",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessTokenC}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/conversations/{{groupConvId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "conversations",
+                "{{groupConvId}}"
+              ]
+            },
+            "description": "Người bị kick không còn quyền truy cập vào nhóm."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 403 - Not a member', () => pm.response.to.have.status(403));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "6.4 User B leaves group -> 200",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessTokenB}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/conversations/{{groupConvId}}/members/{{userIdB}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "conversations",
+                "{{groupConvId}}",
+                "members",
+                "{{userIdB}}"
+              ]
+            },
+            "description": "User B tự rời khỏi nhóm."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const res = pm.response.json();",
+                  "pm.test('User B is removed from group', () => {",
+                  "  const exists = res.data.members.some(m => m._id === pm.environment.get('userIdB'));",
+                  "  pm.expect(exists).to.eql(false);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "7. Presence & Heartbeat",
+      "item": [
+        {
+          "name": "7.1 User A sends heartbeat -> 200",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/users/presence/heartbeat",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "users",
+                "presence",
+                "heartbeat"
+              ]
+            },
+            "description": "Client gửi heartbeat cập nhật trạng thái online."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const res = pm.response.json();",
+                  "pm.test('isOnline is true', () => pm.expect(res.data.isOnline).to.eql(true));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "7.2 Batch query presence -> 200",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/users/presence?userIds={{userId}},{{userIdB}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "users",
+                "presence"
+              ],
+              "query": [
+                {
+                  "key": "userIds",
+                  "value": "{{userId}},{{userIdB}}"
+                }
+              ]
+            },
+            "description": "Truy vấn trạng thái online/lastSeen hàng loạt cho danh sách bạn bè."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const res = pm.response.json();",
+                  "pm.test('User A is online', () => {",
+                  "  const a = res.data[pm.environment.get('userId')];",
+                  "  pm.expect(a.isOnline).to.eql(true);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "7.3 Query presence without userIds -> 400",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/users/presence",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "users",
+                "presence"
+              ]
+            },
+            "description": "Không truyền userIds sẽ trả về 400 Bad Request."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 400 - userIds is required', () => pm.response.to.have.status(400));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

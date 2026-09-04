@@ -192,3 +192,156 @@ Content-Type: application/json
   "isPlaying": false,
   "positionSec": 0
 }
+
+
+### ========== CHAT & CONVERSATIONS ==========
+
+### Create direct conversation (1-1)
+# @name createDirectConv
+POST {{baseUrl}}/conversations
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "type": "direct",
+  "recipientId": "66e000000000000000000002"
+}
+
+###
+@convId = {{createDirectConv.response.body.data._id}}
+
+### Create group conversation
+POST {{baseUrl}}/conversations
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "type": "group",
+  "name": "Nhóm Chat Âm Nhạc",
+  "memberIds": ["66e000000000000000000002"]
+}
+
+### List conversations
+GET {{baseUrl}}/conversations?page=1&limit=20
+Authorization: Bearer {{accessToken}}
+
+### Get conversation details
+GET {{baseUrl}}/conversations/{{convId}}
+Authorization: Bearer {{accessToken}}
+
+### Update group name
+PATCH {{baseUrl}}/conversations/{{convId}}
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "name": "Nhóm Chat Cập Nhật"
+}
+
+### Add member to group
+POST {{baseUrl}}/conversations/{{convId}}/members
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "userId": "66e000000000000000000003"
+}
+
+### Kick / Leave group
+DELETE {{baseUrl}}/conversations/{{convId}}/members/66e000000000000000000003
+Authorization: Bearer {{accessToken}}
+
+### Get chat media upload URL (for image/audio/gif)
+POST {{baseUrl}}/conversations/{{convId}}/upload-url
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "filename": "photo.jpg",
+  "mimeType": "image/jpeg"
+}
+
+
+### ========== MESSAGES ==========
+
+### Send text message
+# @name sendMsg
+POST {{baseUrl}}/conversations/{{convId}}/messages
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "type": "text",
+  "content": "Xin chào! Bài hát này hay quá!"
+}
+
+###
+@msgId = {{sendMsg.response.body.data._id}}
+
+### List messages (cursor pagination)
+GET {{baseUrl}}/conversations/{{convId}}/messages?limit=30
+Authorization: Bearer {{accessToken}}
+
+### Edit message
+PATCH {{baseUrl}}/conversations/{{convId}}/messages/{{msgId}}
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "content": "Xin chào! Bài hát này cực kỳ hay!"
+}
+
+### React to message
+POST {{baseUrl}}/conversations/{{convId}}/messages/{{msgId}}/react
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "emoji": "❤️"
+}
+
+### Mark conversation as read
+POST {{baseUrl}}/conversations/{{convId}}/messages/read
+Authorization: Bearer {{accessToken}}
+
+### Delete message (soft delete)
+DELETE {{baseUrl}}/conversations/{{convId}}/messages/{{msgId}}
+Authorization: Bearer {{accessToken}}
+
+
+### ========== CONTACTS & PRESENCE ==========
+
+### List accepted contacts
+GET {{baseUrl}}/users/contacts
+Authorization: Bearer {{accessToken}}
+
+### List pending contact requests
+GET {{baseUrl}}/users/contacts?status=pending
+Authorization: Bearer {{accessToken}}
+
+### Send contact request
+POST {{baseUrl}}/users/contacts
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "recipientId": "66e000000000000000000002"
+}
+
+### Accept contact request
+PATCH {{baseUrl}}/users/contacts/66e000000000000000000099
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "action": "accept"
+}
+
+### Query presence for multiple users
+GET {{baseUrl}}/users/presence?userIds=66e000000000000000000002,{{userId}}
+Authorization: Bearer {{accessToken}}
+
+### Send heartbeat
+POST {{baseUrl}}/users/presence/heartbeat
+Authorization: Bearer {{accessToken}}
+
