@@ -89,6 +89,14 @@ exports.list = async (req, res) => {
     Album.aggregate([
       { $match: filter },
       {
+        $lookup: {
+          from: 'tracks',
+          localField: 'tracks.track',
+          foreignField: '_id',
+          as: 'trackDetails',
+        },
+      },
+      {
         $project: {
           title: 1,
           artist: 1,
@@ -102,7 +110,7 @@ exports.list = async (req, res) => {
           trackCount: { $size: '$tracks' },
           totalDuration: {
             $reduce: {
-              input: '$tracks',
+              input: '$trackDetails',
               initialValue: 0,
               in: {
                 $add: [

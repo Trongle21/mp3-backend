@@ -85,22 +85,18 @@ exports.updateRole = async (req, res) => {
     });
   }
 
-  // Ràng buộc: master không thể promote bất kỳ ai lên master
-  if (req.isAdmin === "master" && newRole === "master") {
+  // Ràng buộc: không thể promote bất kỳ ai lên master qua API
+  if (newRole === "master") {
     return res.status(403).json({
       success: false,
-      message: "Only a master can create another master",
+      message: "Cannot promote a user to master via API",
     });
   }
 
   target.isAdmin = newRole;
   await target.save();
 
-  const data = attachAvatarUrl(target.toObject());
-  delete data.passwordHash;
-  delete data.avatarKey;
-
-  return res.json({ success: true, data });
+  return res.json({ success: true, data: target.toJSON() });
 };
 
 /**
@@ -179,11 +175,7 @@ exports.updateUser = async (req, res) => {
   Object.assign(target, update);
   await target.save();
 
-  const data = attachAvatarUrl(target.toObject());
-  delete data.passwordHash;
-  delete data.avatarKey;
-
-  return res.json({ success: true, data });
+  return res.json({ success: true, data: target.toJSON() });
 };
 
 /**
@@ -255,7 +247,7 @@ exports.updateProfile = async (req, res) => {
   const user = await User.findByIdAndUpdate(req.userId, update, { new: true });
   if (!user)
     return res.status(404).json({ success: false, message: "User not found" });
-  return res.json({ success: true, data: attachAvatarUrl(user.toObject()) });
+  return res.json({ success: true, data: user.toJSON() });
 };
 
 /**
@@ -377,22 +369,14 @@ exports.remove = async (req, res) => {
   const Track = require("../models/Track");
   const Group = require("../models/Group");
   const Album = require("../models/Album");
+  const PlaybackState = require("../models/PlaybackState");
 
   await Promise.all([
     Track.deleteMany({ owner: id }),
     Group.deleteMany({ owner: id }),
     Album.deleteMany({ owner: id }),
+    PlaybackState.deleteMany({ user: id }),
   ]);
-
-  // Xóa user khỏi groups/albums mà họ đang tham gia (thay vì xóa hẳn group/album).
-  await Group.updateMany(
-    { "members.user": id },
-    { $pull: { members: { user: id } } },
-  );
-  await Album.updateMany(
-    { "members.user": id },
-    { $pull: { members: { user: id } } },
-  );
 
   await User.deleteOne({ _id: id });
 

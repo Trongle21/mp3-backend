@@ -15,8 +15,10 @@ router.use(auth);
 
 // ---- Presigned URL upload (bypass Vercel 4.5MB limit) ----------------------
 // Client flow: getUploadUrl → PUT file lên R2 → finalizeUpload
+// 🔒 Admin only — lấy presigned URL & finalize upload
 router.post(
   '/upload-url',
+  requireAdmin,
   [
     body('filename').isString().notEmpty(),
     body('mimeType').optional().isString(),
@@ -27,6 +29,7 @@ router.post(
 );
 router.post(
   '/finalize',
+  requireAdmin,
   [
     body('fileKey').isString().notEmpty(),
     body('title').optional().isString(),

@@ -1,3 +1,4 @@
+const mongoose = require('mongoose');
 const crypto = require('crypto');
 const { parseBuffer } = require('music-metadata');
 const { PutObjectCommand, DeleteObjectCommand, HeadObjectCommand, GetObjectCommand } = require('@aws-sdk/client-s3');
@@ -220,11 +221,17 @@ exports.remove = async (req, res) => {
   const track = await Track.findOne({ _id: req.params.id });
   if (!track) return res.status(404).json({ success: false, message: 'Track not found' });
 
-  // Gỡ khỏi mọi group (không lọc owner — group giờ chung).
-  await Group.updateMany(
-    { 'tracks.track': track._id },
-    { $pull: { tracks: { track: track._id } } }
-  );
+  // Gỡ khỏi mọi group và album (không lọc owner — dùng chung).
+  await Promise.all([
+    Group.updateMany(
+      { 'tracks.track': track._id },
+      { $pull: { tracks: { track: track._id } } }
+    ),
+    Album.updateMany(
+      { 'tracks.track': track._id },
+      { $pull: { tracks: { track: track._id } } }
+    ),
+  ]);
 
   // Xoá R2 objects.
   const keys = [track.fileKey, track.coverKey].filter(Boolean);
