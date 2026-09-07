@@ -18,6 +18,90 @@ function formatMessage(msg) {
 }
 
 /**
+ * GET /api/conversations/:id/messages/:msgId
+ * Query: context (số tin nhắn xung quanh, mặc định 15)
+ * Lấy 1 message + các tin nhắn xung quanh nó để hiển thị khi click reply
+ */
+exports.getOne = async (req, res) => {
+  const { id, msgId } = req.params;
+  const contextSize = Math.min(
+    Math.max(parseInt(req.query.context, 10) || 15, 0),
+    50,
+  );
+
+  if (!mongoose.Types.ObjectId.isValid(msgId)) {
+    return res
+      .status(400)
+      .json({ success: false, message: "Invalid messageId" });
+  }
+
+  const targetId = new mongoose.Types.ObjectId(msgId);
+
+  // Lấy tin nhắn mục tiêu
+  const target = await Message.findOne({ _id: targetId, conversationId: id })
+    .populate("sender", "_id name email avatarKey")
+    .populate({
+      path: "replyTo",
+      select: "_id sender content type deletedAt",
+      populate: { path: "sender", select: "_id name" },
+    })
+    .lean();
+
+  if (!target) {
+    return res
+      .status(404)
+      .json({ success: false, message: "Message not found" });
+  }
+
+  // Lấy context: tin nhắn cũ hơn (trước target)
+  const older =
+    contextSize > 0
+      ? await Message.find({ conversationId: id, _id: { $lt: targetId } })
+          .sort({ _id: -1 })
+          .limit(contextSize)
+          .populate("sender", "_id name email avatarKey")
+          .populate({
+            path: "replyTo",
+            select: "_id sender content type deletedAt",
+            populate: { path: "sender", select: "_id name" },
+          })
+          .lean()
+      : [];
+
+  // Lấy context: tin nhắn mới hơn (sau target)
+  const newer =
+    contextSize > 0
+      ? await Message.find({ conversationId: id, _id: { $gt: targetId } })
+          .sort({ _id: 1 })
+          .limit(contextSize)
+          .populate("sender", "_id name email avatarKey")
+          .populate({
+            path: "replyTo",
+            select: "_id sender content type deletedAt",
+            populate: { path: "sender", select: "_id name" },
+          })
+          .lean()
+      : [];
+
+  older.reverse();
+  formatMessage(target);
+  older.forEach(formatMessage);
+  newer.forEach(formatMessage);
+
+  return res.json({
+    success: true,
+    data: {
+      target,
+      context: {
+        before: older,
+        after: newer,
+      },
+      targetId: msgId,
+    },
+  });
+};
+
+/**
  * POST /api/conversations/:id/messages
  * Body: { type: 'text' | 'image' | 'sticker' | 'gif' | 'audio', content, replyTo? }
  */
@@ -31,12 +115,10 @@ exports.send = async (req, res) => {
     type === "text" &&
     (!content || typeof content !== "string" || !content.trim())
   ) {
-    return res
-      .status(400)
-      .json({
-        success: false,
-        message: "content cannot be empty for text messages",
-      });
+    return res.status(400).json({
+      success: false,
+      message: "content cannot be empty for text messages",
+    });
   }
 
   // If replying to a message, verify that replyTo exists in this conversation
@@ -174,12 +256,10 @@ exports.edit = async (req, res) => {
   }
 
   if (message.sender.toString() !== req.userId.toString()) {
-    return res
-      .status(403)
-      .json({
-        success: false,
-        message: "Only message author can edit this message",
-      });
+    return res.status(403).json({
+      success: false,
+      message: "Only message author can edit this message",
+    });
   }
 
   if (message.deletedAt) {
@@ -231,12 +311,10 @@ exports.remove = async (req, res) => {
   const isMaster = req.isAdmin === "master";
 
   if (!isSender && !isOwner && !isMaster) {
-    return res
-      .status(403)
-      .json({
-        success: false,
-        message: "Not authorized to delete this message",
-      });
+    return res.status(403).json({
+      success: false,
+      message: "Not authorized to delete this message",
+    });
   }
 
   message.deletedAt = new Date();

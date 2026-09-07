@@ -128,6 +128,19 @@ router.get(
   asyncHandler(msgCtrl.list)
 );
 
+// Lấy 1 message + context (khi click xem reply từ tin nhắn cũ)
+router.get(
+  '/:id/messages/:msgId',
+  [
+    param('id').isMongoId(),
+    param('msgId').isMongoId(),
+    query('context').optional().isInt({ min: 0, max: 50 }),
+  ],
+  runValidation,
+  requireMember,
+  asyncHandler(msgCtrl.getOne)
+);
+
 router.post(
   '/:id/messages/read',
   [param('id').isMongoId()],
