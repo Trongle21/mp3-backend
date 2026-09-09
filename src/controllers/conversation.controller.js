@@ -8,6 +8,7 @@ const sseManager = require("../utils/sseManager");
 const {
   attachConversationAvatarUrl,
   attachConversationAvatarUrls,
+  attachConversationMemberAvatarUrlsBatch,
 } = require("../utils/mediaUrl");
 
 function extFromFilename(name) {
@@ -156,6 +157,7 @@ exports.list = async (req, res) => {
   ]);
 
   attachConversationAvatarUrls(items);
+  attachConversationMemberAvatarUrlsBatch(items);
 
   return res.json({
     success: true,

@@ -1,8 +1,8 @@
-const { PUBLIC_URL } = require('../config/r2');
+const { PUBLIC_URL } = require("../config/r2");
 
 function trimSlash(s) {
-  if (!s) return '';
-  return s.endsWith('/') ? s.slice(0, -1) : s;
+  if (!s) return "";
+  return s.endsWith("/") ? s.slice(0, -1) : s;
 }
 
 /**
@@ -16,7 +16,7 @@ function buildPublicUrl(key) {
   if (!key) return null;
   const base = trimSlash(PUBLIC_URL);
   if (!base) return null;
-  const normalized = key.startsWith('/') ? key.slice(1) : key;
+  const normalized = key.startsWith("/") ? key.slice(1) : key;
   return `${base}/${normalized}`;
 }
 
@@ -24,7 +24,8 @@ function buildPublicUrl(key) {
  * Build coverUrl cho track. Ưu tiên dùng coverKey.
  */
 function trackCoverUrl(trackOrKey) {
-  const key = typeof trackOrKey === 'string' ? trackOrKey : trackOrKey?.coverKey;
+  const key =
+    typeof trackOrKey === "string" ? trackOrKey : trackOrKey?.coverKey;
   return buildPublicUrl(key);
 }
 
@@ -32,7 +33,8 @@ function trackCoverUrl(trackOrKey) {
  * Build thumbnailUrl cho group.
  */
 function groupThumbnailUrl(groupOrKey) {
-  const key = typeof groupOrKey === 'string' ? groupOrKey : groupOrKey?.thumbnailKey;
+  const key =
+    typeof groupOrKey === "string" ? groupOrKey : groupOrKey?.thumbnailKey;
   return buildPublicUrl(key);
 }
 
@@ -68,7 +70,7 @@ function attachThumbnailUrls(groups) {
 }
 
 function conversationAvatarUrl(convOrKey) {
-  const key = typeof convOrKey === 'string' ? convOrKey : convOrKey?.avatarKey;
+  const key = typeof convOrKey === "string" ? convOrKey : convOrKey?.avatarKey;
   return buildPublicUrl(key);
 }
 
@@ -86,7 +88,7 @@ function attachConversationAvatarUrls(convs) {
 
 function attachMessageMediaUrl(msg) {
   if (!msg) return msg;
-  if (['image', 'gif', 'audio'].includes(msg.type) && msg.content) {
+  if (["image", "gif", "audio"].includes(msg.type) && msg.content) {
     msg.mediaUrl = buildPublicUrl(msg.content);
   } else {
     msg.mediaUrl = null;
@@ -98,6 +100,32 @@ function attachMessagesMediaUrls(msgs) {
   if (!Array.isArray(msgs)) return msgs;
   for (const m of msgs) attachMessageMediaUrl(m);
   return msgs;
+}
+
+/**
+ * Gắn avatarUrl vào một user object (có avatarKey).
+ */
+function attachUserAvatarUrl(user) {
+  if (!user) return user;
+  user.avatarUrl = buildPublicUrl(user.avatarKey);
+  return user;
+}
+
+/**
+ * Gắn avatarUrl cho tất cả members trong mỗi conversation.
+ */
+function attachConversationMemberAvatarUrls(conv) {
+  if (!conv) return conv;
+  if (Array.isArray(conv.members)) {
+    for (const m of conv.members) attachUserAvatarUrl(m);
+  }
+  return conv;
+}
+
+function attachConversationMemberAvatarUrlsBatch(convs) {
+  if (!Array.isArray(convs)) return convs;
+  for (const c of convs) attachConversationMemberAvatarUrls(c);
+  return convs;
 }
 
 module.exports = {
@@ -113,4 +141,7 @@ module.exports = {
   attachConversationAvatarUrls,
   attachMessageMediaUrl,
   attachMessagesMediaUrls,
+  attachUserAvatarUrl,
+  attachConversationMemberAvatarUrls,
+  attachConversationMemberAvatarUrlsBatch,
 };
