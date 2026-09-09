@@ -38,20 +38,16 @@ exports.create = async (req, res) => {
   if (type === "direct") {
     const targetId = recipientId || memberIds[0];
     if (!targetId) {
-      return res
-        .status(400)
-        .json({
-          success: false,
-          message: "recipientId or memberIds is required for direct chat",
-        });
+      return res.status(400).json({
+        success: false,
+        message: "recipientId or memberIds is required for direct chat",
+      });
     }
     if (targetId.toString() === currentUserId.toString()) {
-      return res
-        .status(400)
-        .json({
-          success: false,
-          message: "Cannot create direct conversation with yourself",
-        });
+      return res.status(400).json({
+        success: false,
+        message: "Cannot create direct conversation with yourself",
+      });
     }
 
     const recipient = await User.findById(targetId).select(
@@ -194,12 +190,10 @@ exports.getOne = async (req, res) => {
 exports.update = async (req, res) => {
   const conv = req.conversation;
   if (conv.type !== "group") {
-    return res
-      .status(400)
-      .json({
-        success: false,
-        message: "Only group conversations can be updated",
-      });
+    return res.status(400).json({
+      success: false,
+      message: "Only group conversations can be updated",
+    });
   }
 
   if (req.body.name !== undefined) {
@@ -242,12 +236,10 @@ exports.uploadAvatar = async (req, res) => {
 
   const conv = req.conversation;
   if (conv.type !== "group") {
-    return res
-      .status(400)
-      .json({
-        success: false,
-        message: "Only group conversations can have an avatar",
-      });
+    return res.status(400).json({
+      success: false,
+      message: "Only group conversations can have an avatar",
+    });
   }
 
   const ext = extFromFilename(req.file.originalname) || "jpg";
@@ -338,12 +330,10 @@ exports.removeAvatar = async (req, res) => {
 exports.addMember = async (req, res) => {
   const conv = req.conversation;
   if (conv.type !== "group") {
-    return res
-      .status(400)
-      .json({
-        success: false,
-        message: "Cannot add members to direct conversation",
-      });
+    return res.status(400).json({
+      success: false,
+      message: "Cannot add members to direct conversation",
+    });
   }
 
   const { userId } = req.body;
@@ -392,12 +382,10 @@ exports.addMember = async (req, res) => {
 exports.removeMember = async (req, res) => {
   const conv = req.conversation;
   if (conv.type !== "group") {
-    return res
-      .status(400)
-      .json({
-        success: false,
-        message: "Cannot remove members from direct conversation",
-      });
+    return res.status(400).json({
+      success: false,
+      message: "Cannot remove members from direct conversation",
+    });
   }
 
   const targetUserId = req.params.userId;
@@ -495,4 +483,17 @@ exports.getMediaUploadUrl = async (req, res) => {
       expiresIn,
     },
   });
+};
+
+/**
+ * DELETE /api/conversations/:id
+ * Chỉ owner (group) hoặc master mới được xóa cuộc hội thoại.
+ * Soft delete: đánh dấu isDeleted = true.
+ */
+exports.remove = async (req, res) => {
+  const conv = req.conversation;
+
+  await Conversation.updateOne({ _id: conv._id }, { isDeleted: true });
+
+  return res.json({ success: true, message: "Conversation deleted" });
 };

@@ -43,6 +43,15 @@ router.get(
   asyncHandler(convCtrl.getOne)
 );
 
+router.delete(
+  '/:id',
+  [param('id').isMongoId()],
+  runValidation,
+  requireMember,
+  requireConvOwner,
+  asyncHandler(convCtrl.remove)
+);
+
 router.patch(
   '/:id',
   [param('id').isMongoId(), body('name').optional().isString().trim()],
